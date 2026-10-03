@@ -156,7 +156,9 @@ h4 { font-size: 16px; font-weight: 650; }
   .risk { padding: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+  :root:not(:has(#motion-play:checked, #motion-pause:checked)) *,
+  :root:not(:has(#motion-play:checked, #motion-pause:checked)) *::before,
+  :root:not(:has(#motion-play:checked, #motion-pause:checked)) *::after { animation: none !important; transition: none !important; }
 }
 @media print {
   body { background: white; font-size: 11pt; }

@@ -28,6 +28,16 @@ Two examples are included, with rendered HTML ready to open after cloning:
 
 Both are illustrative proposals. Their code and infrastructure are hypothetical.
 
+## Diagram animations
+
+One sticky **System / Play / Pause** control manages all report animations. System is the default and respects the browser's [`prefers-reduced-motion`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@media/prefers-reduced-motion) preference. If motion is reduced, the report explains why its diagrams are static; **Play** explicitly enables motion for this report only. **Pause** freezes playback. Printing is always static, even after selecting Play. No scripts, hover, or focus are required for playback.
+
+On Windows, **Settings → Accessibility → Visual effects → Animation effects** can make the browser request reduced motion. This caused packages to appear stationary in the embedded viewer on our test machine; the original browser check forced motion on and missed the default behavior. The consistent report-level solution is the visible Play override, not changing Windows or assuming an embedded-browser bug. Other viewers must support CSS motion paths and `:has()`; validate the actual viewer if it behaves differently.
+
+Envelopes represent messages; packages represent deployment artifacts. Problem animations must show a consequence, not just activity. The scheduled-export example now shows **the API process stopping mid-export → unfinished work interrupted → this attempt stores no completed result and cannot return success**. The held outcome is also visible with reduced motion and in print. Previous database results are not depicted as deleted, and a later retry is not ruled out.
+
+Four reusable consequence patterns cover interrupted work, message loss, a growing backlog at a bottleneck, and exhausted capacity. Authors select a pattern and supply component references plus condition, cause, and consequence; the renderer supplies the graphics and playback. Choose only a mechanism supported by evidence or explicitly hypothetical context—an awaited call alone does not prove saturation. Ordered sequences remain available for explaining causal order, but a successful completion sequence does not explain a failed attempt. Playback timing and depicted counts are illustrative, not measurements. See [consequence scenarios](review-report/references/format.md#consequence-scenarios).
+
 ## Use the skill
 
 Copy the `review-report/` folder into your agent's skills directory. Keep the scripts, assets, references, and `SKILL.md` together.
@@ -72,4 +82,4 @@ An optional browser check uses Node 22+ and a local Chrome or Edge executable, w
 node review-report/scripts/preview_check.mjs reports/my-report.html reports/previews "/path/to/chrome"
 ```
 
-It checks layout at desktop, tablet, and phone widths, diagram routing, contrast, packet animation, and reduced motion, and saves screenshots.
+It checks layout at desktop, tablet, and phone widths, diagram routing, contrast, actual marker movement, ordered waiting behavior, and consequence-scenario state changes. It records the native motion preference before emulation, then checks System, Play and Pause with reduced motion, plus static printing. It also saves screenshots. Structural and playback checks do not establish whether a claimed failure mechanism is supported by the source.

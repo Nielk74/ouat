@@ -29,9 +29,15 @@ class PageInspector(HTMLParser):
         self.active_graph = None
         self.uses = []
         self.shortcuts = []
+        self.inputs = []
+        self.labels = []
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
+        if tag == "input":
+            self.inputs.append(attrs)
+        if tag == "label":
+            self.labels.append(attrs.get("for"))
         if tag == "svg":
             self.connection_labels.append([])
             self.active_graph = self.connection_labels[-1]
@@ -199,7 +205,10 @@ class ReportTests(unittest.TestCase):
         self.assertIn("Illustrative starting point", html)
         self.assertIn("Problem in existing behavior", html)
         self.assertIn("Why this behavior is problematic", html)
-        self.assertIn("status-unchanged entity-process has-issue", html)
+        root = ET.fromstring(html)
+        problem_nodes = [node for node in root.iter() if node.attrib.get("data-node") == "request"]
+        self.assertTrue(problem_nodes)
+        self.assertTrue(all({"status-unchanged", "has-issue"}.issubset(node.attrib.get("class", "").split()) for node in problem_nodes))
         for obj in visual["nodes"] + visual["edges"]:
             if "issue" in obj:
                 self.assertIn(report.text(obj["issue"]), html)
@@ -318,7 +327,8 @@ class ReportTests(unittest.TestCase):
         self.assertTrue(any(item["path"] == "$.context.visual.nodes[0].animate" for item in self.errors(self.example)))
 
     def test_packages_share_message_routes_and_keep_labels_above_them(self):
-        visual = self.system["changes"][0]["visual"]
+        visual = copy.deepcopy(self.system["changes"][0]["visual"])
+        visual["edges"][2]["animate"] = False
         for vertical in (False, True):
             svg = ET.fromstring(report.render_graph_svg(visual, "plan", "packet-test", vertical))
             edges = [element for element in svg if element.attrib.get("data-edge")]
@@ -332,27 +342,248 @@ class ReportTests(unittest.TestCase):
                     connector = next(child for child in edge if child.attrib.get("class") == "connector")
                     self.assertEqual(packet.attrib["style"], f'offset-path: path("{connector.attrib["d"]}");')
                     self.assertEqual(packet.attrib["aria-hidden"], "true")
-                    self.assertEqual(packet[0].attrib["href"], "#ui-package")
+                    artwork = next(child for child in packet if child.tag.endswith("use"))
+                    self.assertEqual(artwork.attrib["href"], "#ui-message")
                     self.assertFalse(any(child.attrib.get("class") == "connector-emphasis" for child in edge))
                     number_layer = next(element for element in svg if any(child.attrib.get("class") == "edge-number-box" for child in element))
                     self.assertLess(list(svg).index(edge), list(svg).index(number_layer))
             self.assertEqual(packet_edges, 1)
 
-    def test_packet_loop_has_native_pause_without_scripts_or_new_fields(self):
+    def test_deployment_package_and_message_glyphs_match_the_real_transport(self):
+        visual = copy.deepcopy(self.system["changes"][3]["visual"])
+        visual["edges"] = visual["edges"][:1]
+        edge = visual["edges"][0]
+        edge["animate"] = True
+        for transport, expected in (("deploy", "#ui-package"), ("message", "#ui-message"),
+                                    ("spawn", None), ("config", None), ("request", None),
+                                    ("read", None), ("write", None), ("trigger", None)):
+            with self.subTest(transport=transport):
+                edge["transport"] = transport
+                svg = ET.fromstring(report.render_graph_svg(visual, "review", "transfer"))
+                packets = [node for node in svg.iter() if node.attrib.get("class") == "message-packet"]
+                self.assertEqual(len(packets), 1 if expected else 0)
+                if expected:
+                    artwork = next(child for child in packets[0] if child.tag.endswith("use"))
+                    self.assertEqual(artwork.attrib["href"], expected)
+                html = report.render_visual(visual, "review", "transfer")
+                self.assertEqual('href="#motion-controls"' in html, bool(expected))
+
+    def test_deployment_packet_numbers_leave_the_transfer_corridor_clear(self):
+        visual = copy.deepcopy(self.system["changes"][3]["visual"])
+        visual["edges"][0]["animate"] = True
+        for vertical in (False, True):
+            geometry = diagram.route_graph(visual, vertical)
+            points = geometry["routes"][0]["points"]
+            for route in geometry["routes"]:
+                x, y = route["label"]
+                protected_label = (x-31, y-26, 62, 52)
+                self.assertFalse(any(diagram.segment_hits(a, b, protected_label) for a, b in zip(points, points[1:])))
+
+    def test_connection_status_is_grouped_with_its_direction_and_transport(self):
+        root = ET.fromstring('<div>' + report.render_graph(self.system["changes"][3]["visual"], "review", "inline") + '</div>')
+        parents = {child: parent for parent in root.iter() for child in parent}
+        badges = root.findall('.//span[@class="connection-status"]')
+        self.assertEqual(len(badges), 3)
+        for badge in badges:
+            heading = parents[badge]
+            self.assertEqual(heading.attrib.get("class"), "connection-heading")
+            self.assertIsNotNone(heading.find('./span[@class="connection-direction"]'))
+            self.assertIsNotNone(heading.find('./span[@class="transport-label"]'))
+            self.assertIsNotNone(parents[heading].find('./span[@class="connection-label"]'))
+
+    def test_examples_include_message_delivery_and_deployment_motion(self):
+        publish = self.system["changes"][0]["visual"]
+        self.assertTrue(publish["edges"][2].get("animate"))
+        self.assertTrue(self.system["changes"][3]["visual"]["edges"][0].get("animate"))
+
+    def test_packet_loop_uses_one_shared_native_motion_control(self):
         visual = self.system["changes"][0]["visual"]
         html = report.render_visual(visual, "plan", "packet-focus")
         self.assertIn('aria-describedby="packet-focus-packet-note"', html)
         self.assertIn('id="packet-focus-packet-note"', html)
-        self.assertIn('for="packet-focus-pause"', html)
-        self.assertIn('type="checkbox" id="packet-focus-pause"', html)
+        self.assertIn('href="#motion-controls"', html)
+        inspector = PageInspector()
+        inspector.feed(report.render(self.system))
+        radios = [item for item in inspector.inputs if item.get("name") == "diagram-motion"]
+        self.assertEqual([item["id"] for item in radios], ["motion-system", "motion-play", "motion-pause"])
+        self.assertTrue(all(item["type"] == "radio" and item["id"] in inspector.labels for item in radios))
+        self.assertIn("checked", radios[0])
+        self.assertNotIn("checked", radios[1])
+        self.assertEqual(inspector.scripts, 0)
         self.assertIn('Repeats automatically; not a measured rate.', html)
         self.assertNotIn('Hover or focus', html)
         self.assertFalse(self.errors(self.system))
         visual["edges"][1]["animate"] = False
+        visual["edges"][2]["animate"] = False
         html = report.render_visual(visual, "plan", "packet-static")
         self.assertNotIn("message-packet", html)
         self.assertNotIn("tabindex", html)
         self.assertNotIn("packet-guidance", html)
+
+    def baseline_sequence(self):
+        visual = self.system["context"]["visual"]
+        visual.pop("scenario", None)
+        visual["sequence"] = [
+            {"edge": 1, "label": "Request enters API"},
+            {"node": "request", "label": "Request waits for export"},
+            {"edge": 3, "label": "Store result; then reply"},
+        ]
+        return visual
+
+    def failure_scenario(self, template="interrupted-work"):
+        visual = self.system["context"]["visual"]
+        visual.pop("sequence", None)
+        visual["groups"][0]["kind"] = "process"
+        visual["scenario"] = {
+            "template": template, "from": "request", "at": "export", "to": "db",
+            "condition": "The API process stops before the export completes.",
+            "cause": "Request and export execution share one process lifetime.",
+            "consequence": "The in-flight export is interrupted; no completed result is saved.",
+        }
+        return visual
+
+    def test_failure_scenario_shows_interruption_and_missing_result_not_success(self):
+        visual = self.failure_scenario()
+        self.assertFalse(self.errors(self.system))
+        request = next(node for node in visual["nodes"] if node["id"] == "request")
+        self.assertEqual(request["kind"], "function")  # Handler is inside a process, not another process.
+        root = ET.fromstring(report.render_visual(visual, "plan", "failure", baseline=True))
+        focus = next((node for node in root.iter() if node.attrib.get("data-scenario") == "interrupted-work"), None)
+        self.assertIsNotNone(focus)
+        self.assertEqual([node.attrib["data-node-ref"] for node in focus.iter() if "data-node-ref" in node.attrib], ["request", "export", "db"])
+        self.assertTrue(any("scenario-progress-fill" in node.attrib.get("class", "").split() for node in focus.iter()))
+        self.assertTrue(any("scenario-failure-mark" in node.attrib.get("class", "").split() for node in focus.iter()))
+        self.assertTrue(any("scenario-empty-result" in node.attrib.get("class", "").split() for node in focus.iter()))
+        self.assertIn(visual["scenario"]["cause"], ''.join(focus.itertext()))
+        self.assertIn(visual["scenario"]["consequence"], ''.join(focus.itertext()))
+        self.assertTrue(all(item["status"] == "unchanged" for item in visual["nodes"]+visual["edges"]))
+
+    def test_failure_patterns_have_distinct_consequence_graphics(self):
+        expected = {
+            "interrupted-work": "scenario-progress-fill",
+            "message-loss": "scenario-message-token",
+            "bottleneck": "scenario-backlog-item",
+            "saturation": "scenario-capacity-slot",
+        }
+        for template, graphic in expected.items():
+            with self.subTest(template=template):
+                visual = self.failure_scenario(template)
+                if template == "message-loss":
+                    visual["edges"][1]["transport"] = "message"
+                    visual["edges"][2]["transport"] = "message"
+                self.assertFalse(self.errors(self.system))
+                root = ET.fromstring(report.render_visual(visual, "plan", "pattern", baseline=True))
+                focus = next(node for node in root.iter() if node.attrib.get("data-scenario") == template)
+                self.assertTrue(any(graphic in node.attrib.get("class", "").split() for node in focus.iter()))
+                self.assertFalse(any("message-packet" in node.attrib.get("class", "").split() for node in focus.iter()))
+
+    def test_interrupted_attempt_does_not_claim_permanent_job_loss(self):
+        visual = self.failure_scenario()
+        visual["scenario"]["consequence"] = "This attempt is interrupted; retrying after restart can still store the job's result."
+        self.assertFalse(self.errors(self.system))
+        root = ET.fromstring(report.render_scenario(visual, "plan"))
+        story = next(node for node in root.iter() if node.attrib.get("class") == "scenario-story")
+        result_state = next(node for node in root.iter() if node.attrib.get("class") == "scenario-card scenario-card-to")
+        self.assertIn("this attempt", ''.join(story.itertext()))
+        self.assertIn("this attempt", ''.join(result_state.itertext()))
+        self.assertNotIn("never stored", ''.join(root.itertext()))
+        self.assertIn(visual["scenario"]["consequence"], ''.join(root.itertext()))
+
+    def test_failure_scenario_targets_and_relationships_are_checked(self):
+        for field in ("from", "at", "to"):
+            with self.subTest(field=field):
+                visual = self.failure_scenario()
+                visual["scenario"][field] = "missing"
+                self.assertTrue(any(item["path"] == "$.context.visual.scenario."+field for item in self.errors(self.system)))
+        visual = self.failure_scenario()
+        visual["scenario"]["from"] = "cron"
+        self.assertTrue(any(item["path"] == "$.context.visual.scenario.from" for item in self.errors(self.system)))
+
+    def test_interrupted_work_requires_shared_process_and_loss_requires_messages(self):
+        visual = self.failure_scenario()
+        visual["groups"][0]["kind"] = "server"
+        self.assertTrue(any(item["path"] == "$.context.visual.scenario.at" for item in self.errors(self.system)))
+        self.failure_scenario("message-loss")
+        self.assertTrue(any(item["path"] == "$.context.visual.scenario.template" for item in self.errors(self.system)))
+
+    def test_scenario_cannot_compete_with_sequence_or_independent_motion(self):
+        visual = self.failure_scenario()
+        visual["sequence"] = [{"edge": 1, "label": "Request"}, {"edge": 3, "label": "Save"}]
+        self.assertTrue(any(item["path"] == "$.context.visual.scenario" for item in self.errors(self.system)))
+        visual.pop("sequence")
+        visual["edges"][0]["animate"] = True
+        self.assertTrue(any(item["path"] == "$.context.visual.scenario" for item in self.errors(self.system)))
+
+    def test_scenario_plain_text_is_escaped_and_motion_control_is_supplied(self):
+        visual = self.failure_scenario()
+        visual["scenario"]["cause"] = '<script>alert("cause")</script>'
+        self.assertFalse(self.errors(self.system))
+        html = report.render(self.system)
+        self.assertIn("&lt;script&gt;", html)
+        inspector = PageInspector()
+        inspector.feed(html)
+        self.assertEqual(inspector.scripts, 0)
+        self.assertIn("motion-play", inspector.ids)
+        self.assertFalse(inspector.remote_assets)
+
+    def test_baseline_sequence_animates_behavior_without_faking_changes(self):
+        visual = self.baseline_sequence()
+        self.assertFalse(self.errors(self.system))
+        svg = ET.fromstring(report.render_graph_svg(visual, "plan", "baseline"))
+        signals = svg.findall('.//g[@class="behavior-phase behavior-transfer"]')
+        self.assertEqual([signal.attrib["data-step"] for signal in signals], ["1", "3"])
+        waits = svg.findall('.//g[@class="behavior-phase behavior-wait"]')
+        self.assertEqual([wait.attrib["data-step"] for wait in waits], ["2"])
+        self.assertTrue(all(node["status"] == "unchanged" for node in visual["nodes"] + visual["edges"]))
+        self.assertNotIn("message-packet", report.render_graph_svg(visual, "plan", "baseline"))
+        html = report.render_visual(visual, "plan", "baseline", baseline=True)
+        self.assertIn("Request waits for export", html)
+        self.assertIn("Request enters API", html)
+        self.assertIn("Store result; then reply", html)
+
+    def test_sequence_rejects_missing_ambiguous_or_invalid_targets(self):
+        for step, suffix in [
+            ({"edge": 0, "label": "Bad edge"}, ".edge"),
+            ({"edge": 99, "label": "Bad edge"}, ".edge"),
+            ({"node": "missing", "label": "Bad node"}, ".node"),
+            ({"node": "cron", "label": "Unexplained wait"}, ".node"),
+            ({"node": "request", "edge": 1, "label": "Ambiguous"}, ""),
+            ({"label": "Missing target"}, ""),
+        ]:
+            with self.subTest(step=step):
+                visual = self.baseline_sequence()
+                visual["sequence"][0] = step
+                errors = self.errors(self.system)
+                self.assertTrue(any(item["path"] == "$.context.visual.sequence[0]" + suffix for item in errors), errors)
+
+    def test_sequence_does_not_turn_configuration_into_a_transfer(self):
+        visual = self.baseline_sequence()
+        visual["edges"][0]["transport"] = "config"
+        self.assertTrue(any(item["path"] == "$.context.visual.sequence[0].edge" for item in self.errors(self.system)))
+
+    def test_sequence_can_explain_waits_without_any_transfer(self):
+        visual = self.baseline_sequence()
+        visual["sequence"] = [
+            {"node": "request", "label": "Wait for inline export"},
+            {"node": "request", "label": "Wait for persistence before replying"},
+        ]
+        self.assertFalse(self.errors(self.system))
+        svg = ET.fromstring(report.render_graph_svg(visual, "plan", "waits"))
+        self.assertEqual(len(svg.findall('.//g[@class="behavior-phase behavior-wait"]')), 2)
+        self.assertFalse(svg.findall('.//g[@class="behavior-phase behavior-transfer"]'))
+
+    def test_sequence_size_is_bounded_and_labels_are_escaped(self):
+        visual = self.baseline_sequence()
+        visual["sequence"] = visual["sequence"] * 2
+        self.assertTrue(any(item["path"] == "$.context.visual.sequence" for item in self.errors(self.system)))
+        visual = self.baseline_sequence()
+        visual["sequence"][1]["label"] = '<script>alert("wait")</script>'
+        self.assertFalse(self.errors(self.system))
+        html = report.render(self.system)
+        self.assertIn("&lt;script&gt;", html)
+        inspector = PageInspector()
+        inspector.feed(html)
+        self.assertEqual(inspector.scripts, 0)
 
     def test_local_brand_catalog_is_complete_safe_and_attributed(self):
         self.assertGreaterEqual(len(brands.BRANDS), 50)

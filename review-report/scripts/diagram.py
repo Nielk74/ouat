@@ -5,6 +5,13 @@ import heapq
 import textwrap
 
 
+def packet_symbol(edge):
+    """Identify a real animated transfer for both rendering and clearance."""
+    if not edge.get("animate"):
+        return None
+    return {"message": "message", "deploy": "package"}.get(edge.get("transport"))
+
+
 class RouteError(ValueError):
     def __init__(self, edge, message):
         self.edge = edge
@@ -262,7 +269,9 @@ def route_graph(visual, vertical=False):
     positions, width, height = graph_layout(visual["nodes"], visual["edges"], visual.get("groups"), vertical)
     groups = group_bounds(visual, positions)
     obstacles = [(x-18, y-18, w+36, h+36) for x, y, w, h, _ in positions.values()]
-    heading_clearance = 16 if any(edge.get("animate") and edge.get("transport") == "message" for edge in visual["edges"]) else 8
+    sequence_edges = {step["edge"]-1 for step in visual.get("sequence", []) if "edge" in step}
+    moving_edges = sequence_edges | {index for index, edge in enumerate(visual["edges"]) if packet_symbol(edge)}
+    heading_clearance = 16 if moving_edges else 8
     obstacles += [(x-heading_clearance, y-heading_clearance, w+heading_clearance*2, h+heading_clearance*2) for _, _, (x, y, w, h) in groups]
     ports = port_requests(visual, positions, vertical)
     xs, ys = {22, 44, 60, width-60, width-44, width-22}, {22, 32, height-32, height-22}
@@ -290,7 +299,7 @@ def route_graph(visual, vertical=False):
     occupied += [(route["points"][-1][0]-18, route["points"][-1][1]-18, 36, 36) for route in routes]
     for index, route in enumerate(routes):
         candidates = []
-        packet = visual["edges"][index].get("animate") and visual["edges"][index].get("transport") == "message"
+        packet = index in moving_edges
         for a, b in zip(route["points"], route["points"][1:]):
             length = abs(b[0]-a[0])+abs(b[1]-a[1])
             for fraction in (.5, .3, .7, .2, .8):
@@ -306,7 +315,7 @@ def route_graph(visual, vertical=False):
                 continue
             blocked = False
             for other_index, other in enumerate(routes):
-                other_packet = visual["edges"][other_index].get("animate") and visual["edges"][other_index].get("transport") == "message"
+                other_packet = other_index in moving_edges
                 if other_index == index and not packet:
                     continue
                 margin = 14 if other_packet else 4

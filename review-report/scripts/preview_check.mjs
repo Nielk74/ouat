@@ -74,7 +74,7 @@ try {
   mkdirSync(resolve(destination), { recursive: true });
   for (const width of [1440, 768, 375]) {
     await cdp('Emulation.setDeviceMetricsOverride', { width, height: 1100, deviceScaleFactor: 1, mobile: width < 600 });
-    await cdp('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
+    await cdp('Emulation.setEmulatedMedia', { features: [] });
     await cdp('Page.navigate', { url });
     let ready = false;
     for (let attempt = 0; attempt < 100; attempt++) {
@@ -83,6 +83,14 @@ try {
       await sleep(50);
     }
     if (!ready) throw new Error('Report did not finish loading.');
+    const nativeMotion = await evaluate(`({
+      reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
+      animations: document.getAnimations().length,
+      systemSelected: document.getElementById('motion-system')?.checked ?? null,
+      reducedExplanationVisible: Boolean(document.querySelector('.motion-system-reduced')?.getClientRects().length)
+    })`);
+    if (nativeMotion.reduced && (nativeMotion.animations || nativeMotion.systemSelected === true && !nativeMotion.reducedExplanationVisible)) throw new Error('Native reduced-motion view animates or lacks an explanation.');
+    await cdp('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'no-preference' }] });
     const layout = await evaluate(`({
       width: innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
@@ -120,6 +128,27 @@ try {
       return { checked, failures };
     })()`);
     if (diagramText.failures.length) throw new Error('Diagram text exceeds its node: ' + JSON.stringify(diagramText.failures));
+    const connectionBadges = await evaluate(`(() => {
+      const failures = [];
+      let checked = 0;
+      for (const badge of document.querySelectorAll('.connection-status')) {
+        checked++;
+        const heading = badge.parentElement;
+        if (!heading.classList.contains('connection-heading') || !heading.querySelector('.connection-direction')) {
+          failures.push('Connection status is detached from its title.');
+          continue;
+        }
+        const previous = badge.previousElementSibling.getBoundingClientRect();
+        const box = badge.getBoundingClientRect();
+        if (box.top < previous.bottom && box.bottom > previous.top) {
+          if (box.left-previous.right > 12 || box.left < previous.right-1) failures.push('Connection status is too far from its title.');
+        } else if (Math.abs(box.left-heading.getBoundingClientRect().left) > 1) {
+          failures.push('Wrapped connection status is not aligned with its title.');
+        }
+      }
+      return { checked, failures };
+    })()`);
+    if (connectionBadges.failures.length) throw new Error('Invalid connection badges: ' + JSON.stringify(connectionBadges.failures));
     const brandArtwork = await evaluate(`(() => {
       const failures = [];
       let checked = 0, contrastChecked = 0, multicolor = 0, minimum = Infinity;
@@ -246,23 +275,26 @@ try {
       return { checked, failures: [...new Set(failures)] };
     })()`);
     if (diagramRouting.failures.length) throw new Error('Unreadable diagram routing: ' + JSON.stringify(diagramRouting.failures));
-    const permitted = new Set(['highlight-outline', 'connection-flow', 'packet-transfer']);
-    if (layout.animations.some(animation => !permitted.has(animation.name) || !/pulse|node-emphasis|connector-emphasis|message-packet/.test(animation.className) || (animation.name === 'packet-transfer' ? animation.duration > 4000 || animation.iterations !== 'infinite' : animation.duration * animation.iterations > 5000))) {
+    const permitted = new Set(['highlight-outline', 'connection-flow', 'packet-transfer', 'behavior-travel', 'behavior-waiting', 'scenario-before', 'scenario-after', 'scenario-progress', 'scenario-message', 'scenario-slow-progress', 'scenario-accumulate', 'scenario-accumulate-2', 'scenario-accumulate-3', 'scenario-accumulate-4']);
+    for (let count = 2; count <= 5; count++) for (let step = 1; step <= count; step++) permitted.add('behavior-window-' + count + '-' + step);
+    if (layout.animations.some(animation => !permitted.has(animation.name) || !/pulse|node-emphasis|connector-emphasis|message-packet|behavior-|scenario-/.test(animation.className) || (animation.name.startsWith('scenario-') ? animation.duration !== 12000 || animation.iterations !== 'infinite' : animation.name.startsWith('behavior-') ? animation.duration > 20000 || animation.iterations !== 'infinite' : animation.name === 'packet-transfer' ? animation.duration > 4000 || animation.iterations !== 'infinite' : animation.duration * animation.iterations > 5000))) {
       throw new Error('Unexpected animation or unbounded decorative emphasis.');
     }
     const packetMotion = await evaluate(`(async () => {
       const failures = [];
       let checked = 0;
+      const transports = [];
       const frame = () => new Promise(resolveFrame => requestAnimationFrame(resolveFrame));
       // Read the introduction first: packages must still move without hover/focus.
       await new Promise(resolveDelay => setTimeout(resolveDelay, 5200));
       const visiblePackets = [...document.querySelectorAll('.message-packet')].filter(node => node.closest('.graph').getClientRects().length);
       for (const packet of visiblePackets) {
         const graph = packet.closest('.graph'), edge = packet.closest('.edge');
+        transports.push(edge.classList.contains('transport-deploy') ? 'deploy' : 'message');
         const path = edge.querySelector('.connector');
         const figure = packet.closest('figure');
-        const control = figure.querySelector('.packet-pause');
-        if (!control || !figure.querySelector('label[for="' + control?.id + '"]') || !document.getElementById(figure.getAttribute('aria-describedby'))) failures.push('Packet pause lacks a native labeled control.');
+        const control = document.getElementById('motion-pause');
+        if (!control || !document.querySelector('label[for="motion-pause"]') || !document.getElementById(figure.getAttribute('aria-describedby'))) failures.push('Packet pause lacks a shared native labeled control.');
         figure.scrollIntoView({ block: 'center' });
         const animation = packet.getAnimations()[0];
         if (!animation || animation.animationName !== 'packet-transfer' || animation.effect.getTiming().iterations !== Infinity) {
@@ -270,42 +302,193 @@ try {
           continue;
         }
         const before = animation.currentTime;
+        const beforePosition = graph.getScreenCTM().inverse().multiply(packet.getScreenCTM());
         await new Promise(resolveTick => setTimeout(resolveTick, 180));
         if (animation.playState !== 'running' || animation.currentTime <= before + 50) failures.push('Package does not advance without hover/focus.');
+        const afterPosition = graph.getScreenCTM().inverse().multiply(packet.getScreenCTM());
+        // Neighboring nodes can leave only a short transfer lane. Detect frozen
+        // geometry without demanding a fixed distance greater than its motion.
+        const minimumMovement = Math.min(2, Math.max(.1, (path.getTotalLength()-43)/100));
+        if (Math.hypot(afterPosition.e-beforePosition.e, afterPosition.f-beforePosition.f) < minimumMovement) failures.push('Animation clock advances but the visible packet does not move.');
         control.checked = true;
         await frame();
         await frame();
-        if (getComputedStyle(packet).animationPlayState !== 'paused') failures.push('Pause checkbox does not stop packet motion.');
+        if (getComputedStyle(packet).animationPlayState !== 'paused') failures.push('Shared Pause does not stop packet motion.');
         const paused = animation.currentTime;
         await new Promise(resolveTick => setTimeout(resolveTick, 100));
         if (Math.abs(animation.currentTime-paused) > 1) failures.push('Package still advances while paused.');
         animation.pause();
         const duration = animation.effect.getTiming().duration;
+        const delay = animation.effect.getTiming().delay;
         const length = path.getTotalLength();
         for (const fraction of [.1, .25, .5, .75, .9]) {
-          animation.currentTime = duration * fraction;
+          // Sample the intended active phase, including a mid-route startup offset.
+          animation.currentTime = delay + duration * (1 + fraction);
           await frame();
           const matrix = graph.getScreenCTM().inverse().multiply(packet.getScreenCTM());
           const expected = path.getPointAtLength(18 + (length-43) * fraction);
           checked++;
-          if (Math.hypot(matrix.e-expected.x, matrix.f-expected.y) > 1) failures.push('Package leaves its connector route.');
+          if (Math.hypot(matrix.e-expected.x, matrix.f-expected.y) > 1) failures.push('Package leaves its connector route: sample=' + fraction + ', progress=' + animation.effect.getComputedTiming().progress + ', delay=' + animation.effect.getTiming().delay);
           if (Math.abs(matrix.b) > .001 || Math.abs(matrix.c) > .001 || Math.abs(matrix.a-1) > .001 || Math.abs(matrix.d-1) > .001) failures.push('Package rotates or scales during transfer.');
           for (const obstacle of graph.querySelectorAll('.node-box, .group-heading-bg, .edge-number-box')) {
             const box = obstacle.getBBox();
             if (matrix.e+12 > box.x && matrix.e-12 < box.x+box.width && matrix.f+12 > box.y && matrix.f-12 < box.y+box.height) failures.push('Package overlaps a node, heading, or number plate.');
           }
         }
-        animation.currentTime = duration * 6.5;
+        animation.currentTime = delay + duration * 6.5;
         await frame();
         if (getComputedStyle(packet).opacity !== '1') failures.push('Package disappears in later cycles.');
-        control.checked = false;
+        document.getElementById('motion-play').checked = true;
         animation.play();
         await frame();
-        if (getComputedStyle(packet).animationPlayState !== 'running') failures.push('Package does not resume after unchecking pause.');
+        if (getComputedStyle(packet).animationPlayState !== 'running') failures.push('Package does not resume after selecting Play.');
       }
-      return { checked, failures: [...new Set(failures)] };
+      return { checked, transports, failures: [...new Set(failures)] };
     })()`);
     if (packetMotion.failures.length) throw new Error('Invalid package animation: ' + JSON.stringify(packetMotion.failures));
+    const sequenceMotion = await evaluate(`(async () => {
+      const failures = [], samples = [];
+      const frame = () => new Promise(done => requestAnimationFrame(done));
+      for (const graph of document.querySelectorAll('.graph')) {
+        if (!graph.getClientRects().length || !graph.querySelector('.behavior-phase')) continue;
+        const figure = graph.closest('figure');
+        figure.scrollIntoView({ block: 'center' });
+        const pane = graph.closest('.behavior-pane') || figure;
+        const phases = [...graph.querySelectorAll('.behavior-phase'), ...pane.querySelectorAll('.behavior-step-highlight')];
+        const active = graph.querySelector('.behavior-travel');
+        const count = pane.querySelectorAll('.behavior-step').length;
+        const seek = async time => {
+          for (const element of [...phases, ...graph.querySelectorAll('.behavior-travel, .behavior-wait-outline')]) {
+            const animation = element.getAnimations()[0];
+            if (!animation) { failures.push('Missing behavior animation.'); continue; }
+            animation.pause();
+            animation.currentTime = time;
+          }
+          await frame();
+        };
+        for (let step = 1; step <= count; step++) {
+          await seek((step-1)*4000+2000);
+          const visible = phases.filter(node => Number(getComputedStyle(node).opacity) > .9).map(node => Number(node.dataset.step));
+          if (!visible.length || visible.some(number => number !== step)) failures.push('Behavior order/step highlighting is out of sync.');
+          samples.push({ step, visible });
+        }
+        await seek(count*4000+1000);
+        if (Number(getComputedStyle(graph.querySelector('[data-step="1"]')).opacity) !== 1) failures.push('Behavior does not repeat after its first cycle.');
+        for (const signal of graph.querySelectorAll('.behavior-travel')) {
+          const path = signal.closest('.edge').querySelector('.connector');
+          const animation = signal.getAnimations()[0];
+          const length = path.getTotalLength();
+          for (const fraction of [.1, .25, .5, .75, .9]) {
+            animation.currentTime = fraction*4000;
+            await frame();
+            const matrix = graph.getScreenCTM().inverse().multiply(signal.getScreenCTM());
+            const expected = path.getPointAtLength(18+(length-43)*fraction);
+            if (Math.hypot(matrix.e-expected.x, matrix.f-expected.y) > 1) failures.push('Behavior signal leaves its connector.');
+            for (const obstacle of graph.querySelectorAll('.node-box, .group-heading-bg, .edge-number-box')) {
+              const box = obstacle.getBBox();
+              if (matrix.e+12 > box.x && matrix.e-12 < box.x+box.width && matrix.f+12 > box.y && matrix.f-12 < box.y+box.height) failures.push('Behavior signal overlaps diagram content.');
+            }
+          }
+        }
+        await seek(1000);
+        for (const element of [...phases, ...graph.querySelectorAll('.behavior-travel, .behavior-wait-outline')]) element.getAnimations()[0]?.play();
+        if (active) {
+          const before = active.getScreenCTM();
+          await new Promise(done => setTimeout(done, 180));
+          const after = active.getScreenCTM();
+          if (Math.hypot(after.e-before.e, after.f-before.f) < .1) failures.push('Behavior clock advances but its signal does not move.');
+        }
+        const outline = graph.querySelector('.behavior-wait-outline');
+        if (outline) {
+          const beforeDash = getComputedStyle(outline).strokeDashoffset;
+          await new Promise(done => setTimeout(done, 120));
+          if (getComputedStyle(outline).strokeDashoffset === beforeDash) failures.push('Waiting outline is not moving.');
+        }
+      }
+      return { samples, failures: [...new Set(failures)] };
+    })()`);
+    if (sequenceMotion.failures.length) throw new Error('Invalid baseline behavior animation: ' + JSON.stringify(sequenceMotion.failures));
+    const scenarioMotion = await evaluate(`(async () => {
+      const failures = [], samples = [];
+      const frame = () => new Promise(done => requestAnimationFrame(done));
+      for (const scene of document.querySelectorAll('.problem-scenario')) {
+        const animations = scene.getAnimations({ subtree: true });
+        if (!animations.length) { failures.push('Scenario has no playback.'); continue; }
+        const visible = selector => [...scene.querySelectorAll(selector)].filter(node => Number(getComputedStyle(node).opacity) > .9).length;
+        const state = () => ({
+          normal: visible('.scenario-normal'), failure: visible('.scenario-failure'),
+          progress: scene.querySelector('.scenario-progress-fill') ? new DOMMatrix(getComputedStyle(scene.querySelector('.scenario-progress-fill')).transform).a : null,
+          items: visible('.scenario-backlog-item, .scenario-capacity-slot'),
+          messageX: scene.querySelector('.scenario-message-token') ? new DOMMatrix(getComputedStyle(scene.querySelector('.scenario-message-token')).transform).e : null,
+          jobVisible: visible('.scenario-job-symbol'),
+        });
+        const seek = async time => {
+          for (const animation of animations) { animation.pause(); animation.currentTime = time; }
+          await frame();
+          return state();
+        };
+        const start = await seek(500), active = await seek(3000), beforeFailure = await seek(5000);
+        const failed = await seek(8000), held = await seek(11000), replay = await seek(12500);
+        const template = scene.dataset.scenario;
+        if (!start.normal || start.failure || failed.normal || !failed.failure || held.normal || !held.failure || !replay.normal || replay.failure) failures.push(template + ': normal/failure/replay states are not synchronized.');
+        if (!scene.querySelector('.scenario-condition')?.textContent.trim() || !scene.querySelector('.scenario-explanation')?.textContent.trim() || scene.querySelectorAll('.scenario-story li').length !== 3) failures.push(template + ': condition or causal explanation is missing.');
+        if (template === 'interrupted-work') {
+          if (!(active.progress > start.progress && beforeFailure.progress > active.progress && failed.progress > .1 && failed.progress < .9 && Math.abs(held.progress-failed.progress) < .001)) failures.push('Interrupted work does not stop unfinished and hold its progress.');
+          if (!start.jobVisible || failed.jobVisible || !scene.querySelector('.scenario-runtime .scenario-failure') || !scene.querySelector('.scenario-card-to .scenario-empty-result')) failures.push('Process stop does not interrupt the job and leave a missing result.');
+        } else if (template === 'message-loss') {
+          if (!(active.messageX > start.messageX && start.jobVisible && !failed.jobVisible) || !scene.querySelector('.scenario-card-to .scenario-empty-result') || scene.querySelector('.scenario-card-to .scenario-message-token')) failures.push('Lost message does not travel then disappear before delivery.');
+        } else if (template === 'bottleneck' || template === 'saturation') {
+          const expected = template === 'bottleneck' ? 4 : 3;
+          if (start.items !== 0 || active.items <= start.items || beforeFailure.items < active.items || failed.items !== expected || held.items !== expected) failures.push(template + ': pending items/capacity do not accumulate from an empty start.');
+          if (template === 'bottleneck' && !(held.progress > failed.progress && failed.progress > active.progress)) failures.push('Bottleneck stops all processing instead of showing continued throughput.');
+          if (!scene.querySelector('.scenario-card-to .scenario-delay') || scene.querySelector('.scenario-failure-mark')) failures.push(template + ': delayed work is incorrectly represented as lost.');
+        } else failures.push('Unknown consequence pattern: ' + template);
+        samples.push({ template, start, active, failed, held });
+        await seek(2000);
+        animations.forEach(animation => animation.play());
+        const before = state();
+        await new Promise(done => setTimeout(done, 180));
+        const after = state();
+        if (template === 'interrupted-work' || template === 'bottleneck') {
+          if (after.progress <= before.progress) failures.push(template + ': progress is not visibly advancing during playback.');
+        } else if (template === 'message-loss' && after.messageX <= before.messageX) failures.push('Message is not visibly moving during playback.');
+      }
+      return { samples, failures: [...new Set(failures)] };
+    })()`);
+    if (scenarioMotion.failures.length) throw new Error('Invalid consequence animation: ' + JSON.stringify(scenarioMotion.failures));
+    if (scenarioMotion.samples.length) {
+      for (const [phase, time] of [['active', 2000], ['outcome', 8000]]) {
+        const scenes = await evaluate(`(async () => {
+          for (const scene of document.querySelectorAll('.problem-scenario')) for (const animation of scene.getAnimations({ subtree: true })) { animation.pause(); animation.currentTime = ${time}; }
+          await new Promise(done => requestAnimationFrame(done));
+          return [...document.querySelectorAll('.problem-scenario')].map((scene, index) => ({ index, template: scene.dataset.scenario, y: scene.getBoundingClientRect().top + scrollY, height: scene.offsetHeight }));
+        })()`);
+        for (const scene of scenes) {
+          const shot = await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: scene.y, width, height: scene.height, scale: 1 } });
+          writeFileSync(join(resolve(destination), reportName + '-scenario-' + scene.index + '-' + phase + '-' + width + '.png'), Buffer.from(shot.data, 'base64'));
+        }
+      }
+      await evaluate(`document.querySelectorAll('.problem-scenario').forEach(scene => scene.getAnimations({ subtree: true }).forEach(animation => animation.play()))`);
+    }
+    let responsiveSequence = null;
+    if (width === 1440 && sequenceMotion.samples.length) {
+      await evaluate(`(() => {
+        for (const phase of document.querySelectorAll('#context .behavior-phase')) {
+          if (!phase.getClientRects().length) continue;
+          const animation = phase.getAnimations()[0];
+          animation.currentTime = 6000;
+          animation.play();
+        }
+      })()`);
+      await cdp('Emulation.setDeviceMetricsOverride', { width: 375, height: 1100, deviceScaleFactor: 1, mobile: true });
+      await sleep(120);
+      responsiveSequence = await evaluate(`(() => {
+        const active = selector => [...document.querySelectorAll(selector)].filter(node => node.getClientRects().length && Number(getComputedStyle(node).opacity) > .9).map(node => Number(node.dataset.step));
+        return { graph: active('#context .graph .behavior-phase'), strip: active('#context .behavior-step-highlight') };
+      })()`);
+      if (!responsiveSequence.graph.length || !responsiveSequence.strip.length || responsiveSequence.graph.some(step => !responsiveSequence.strip.includes(step))) throw new Error('Responsive sequence loses synchronization: ' + JSON.stringify(responsiveSequence));
+      await cdp('Emulation.setDeviceMetricsOverride', { width, height: 1100, deviceScaleFactor: 1, mobile: false });
+    }
     await evaluate('window.scrollTo(0, 0)');
     // Check representative report text against its actual opaque surface. This
     // covers editor tokens on both diff backgrounds as well as status labels.
@@ -318,7 +501,8 @@ try {
         '.visual-heading', 'figcaption', '.connection-index', '.connection-direction',
         '.connection-label', '.connection-status', '.transport-label', '.basis',
         '.problem-key', '.issue-notes h4', '.issue-notes strong', '.issue-notes p',
-        '.packet-guidance',
+        '.packet-guidance', '.motion-controls legend', '.motion-controls label', '.motion-controls p', '.behavior-step strong', '.behavior-step div > span', '.behavior-note',
+        '.scenario-heading h4', '.scenario-heading > span', '.scenario-condition', '.scenario-runtime', '.scenario-component h5', '.scenario-component span', '.scenario-component-state > span', '.scenario-graphic-note', '.scenario-story li', '.scenario-explanation p', '.scenario-consequence strong', '.scenario-note', '.scenario-failure',
         '.risk p', '.risk-severity', '.footer'];
       const rgba = value => value.match(/[\\d.]+/g).map(Number);
       const luminance = color => {
@@ -349,11 +533,99 @@ try {
       return { checked, minimum: Number(minimum.toFixed(2)), failures };
     })()`);
     if (contrast.failures.length) throw new Error('Report text contrast is below 4.5:1: ' + JSON.stringify(contrast.failures));
+    await evaluate(`document.getElementById('motion-system') && (document.getElementById('motion-system').checked = true)`);
     await cdp('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     const reducedMotion = await evaluate('document.getAnimations().length');
     if (reducedMotion !== 0) throw new Error('Reduced motion still animates content.');
     const staticPackets = await evaluate(`Array.from(document.querySelectorAll('.message-packet')).every(packet => getComputedStyle(packet).animationName === 'none' && getComputedStyle(packet).offsetDistance === '35%' && getComputedStyle(packet).opacity === '1')`);
     if (!staticPackets) throw new Error('Reduced-motion packages are not static and visible.');
+    const staticScenarioExpression = `(() => {
+      const failures = [];
+      for (const scene of document.querySelectorAll('.problem-scenario')) {
+        if ([...scene.querySelectorAll('.scenario-normal')].some(node => Number(getComputedStyle(node).opacity) !== 0) || [...scene.querySelectorAll('.scenario-failure')].some(node => Number(getComputedStyle(node).opacity) !== 1)) failures.push(scene.dataset.scenario + ': static view does not show the failure outcome.');
+        if (scene.dataset.scenario === 'interrupted-work') {
+          const progress = new DOMMatrix(getComputedStyle(scene.querySelector('.scenario-progress-fill')).transform).a;
+          if (progress <= 0 || progress >= 1) failures.push('Static interrupted work appears completed or unstarted.');
+        }
+        if ([...scene.querySelectorAll('.scenario-backlog-item, .scenario-capacity-slot')].some(node => Number(getComputedStyle(node).opacity) !== 1)) failures.push('Static backlog/capacity hides occupied items.');
+      }
+      return { checked: document.querySelectorAll('.problem-scenario').length, failures };
+    })()`;
+    const staticScenarios = await evaluate(staticScenarioExpression);
+    if (staticScenarios.failures.length) throw new Error('Invalid reduced-motion consequence: ' + JSON.stringify(staticScenarios.failures));
+    const reducedPlayback = await evaluate(`(async () => {
+      const control = document.getElementById('motion-play');
+      if (!control) return { checked: 0, failures: [] };
+      const failures = [], frame = () => new Promise(done => requestAnimationFrame(done));
+      const staticState = () => [...document.querySelectorAll('.message-packet, .behavior-phase, .behavior-travel, .scenario-normal, .scenario-failure, .scenario-progress-fill, .scenario-backlog-item, .scenario-capacity-slot')].map(node => {
+        const style = getComputedStyle(node);
+        return [style.opacity, style.transform, style.offsetDistance];
+      });
+      const beforePause = JSON.stringify(staticState());
+      document.getElementById('motion-pause').checked = true;
+      await frame(); await frame();
+      await new Promise(done => setTimeout(done, 120));
+      if (JSON.stringify(staticState()) !== beforePause) failures.push('Pause changes the static reduced-motion view before Play.');
+      if (document.getAnimations().some(animation => animation.playState !== 'paused' || animation.currentTime !== 0)) failures.push('Pause starts playback before Play.');
+      document.getElementById('motion-system').checked = true;
+      await frame(); await frame();
+      control.checked = true;
+      await frame(); await frame();
+      for (const pane of document.querySelectorAll('.behavior-pane')) {
+        if (!pane.getClientRects().length) continue;
+        const phases = [...pane.querySelectorAll('.behavior-phase')];
+        const count = pane.querySelectorAll('.behavior-step').length;
+        const animations = pane.getAnimations({ subtree: true });
+        for (let step = 1; step <= count; step++) {
+          for (const animation of animations) { animation.pause(); animation.currentTime = (step-1)*4000+500; }
+          await frame();
+          const visible = phases.filter(node => Number(getComputedStyle(node).opacity) > .9).map(node => Number(node.dataset.step));
+          if (!visible.length || visible.some(number => number !== step)) failures.push('Reduced-motion Play shows future sequence steps before their turn.');
+        }
+        for (const animation of animations) animation.play();
+      }
+      // Discard test-controlled WAAPI clocks before checking native controls.
+      document.getElementById('motion-system').checked = true;
+      await frame(); await frame();
+      control.checked = true;
+      await frame(); await frame();
+      const markers = [...document.querySelectorAll('.message-packet, .behavior-travel')].filter(node => node.closest('.graph').getClientRects().length);
+      const moving = markers[0];
+      if (moving) {
+        const before = moving.getScreenCTM();
+        await new Promise(done => setTimeout(done, 200));
+        const after = moving.getScreenCTM();
+        if (Math.hypot(after.e-before.e, after.f-before.f) < .1) failures.push('Play does not visibly override reduced motion.');
+      }
+      if (!document.getAnimations().length) failures.push('Play has no active animations.');
+      const progress = document.querySelector('.scenario-progress-fill');
+      if (progress) {
+        progress.getAnimations()[0].currentTime = 2000;
+        await frame();
+        const before = new DOMMatrix(getComputedStyle(progress).transform).a;
+        await new Promise(done => setTimeout(done, 180));
+        if (new DOMMatrix(getComputedStyle(progress).transform).a <= before) failures.push('Play does not advance scenario progress under reduced motion.');
+      }
+      document.getElementById('motion-pause').checked = true;
+      await frame(); await frame();
+      const animations = document.getAnimations();
+      const times = animations.map(animation => animation.currentTime);
+      await new Promise(done => setTimeout(done, 120));
+      if (animations.some((animation, index) => animation.playState !== 'paused' || Math.abs(animation.currentTime-times[index]) > 1)) failures.push('Pause does not freeze playback under reduced motion.');
+      if (!animations.length) failures.push('Pause resets rather than freezes the animation.');
+      control.checked = true;
+      await frame();
+      if (document.getAnimations().some(animation => animation.playState !== 'running')) failures.push('Play does not resume paused reduced-motion playback.');
+      return { checked: markers.length, failures };
+    })()`);
+    if (reducedPlayback.failures.length) throw new Error('Invalid reduced-motion controls: ' + JSON.stringify(reducedPlayback.failures));
+    await cdp('Emulation.setEmulatedMedia', { media: 'print', features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+    const printMotion = await evaluate(`({ animations: document.getAnimations().length, phasesVisible: [...document.querySelectorAll('.behavior-phase:not(.behavior-step-highlight)')].every(node => Number(getComputedStyle(node).opacity) === 1) })`);
+    if (printMotion.animations || !printMotion.phasesVisible) throw new Error('Print animates or hides behavior indications after Play.');
+    const printScenarios = await evaluate(staticScenarioExpression);
+    if (printScenarios.failures.length) throw new Error('Invalid print consequence: ' + JSON.stringify(printScenarios.failures));
+    await evaluate(`document.getElementById('motion-system') && (document.getElementById('motion-system').checked = true)`);
+    await cdp('Emulation.setEmulatedMedia', { media: 'screen', features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     const screenshot = await cdp('Page.captureScreenshot', { format: 'png' });
     const output = join(resolve(destination), reportName + '-' + width + '.png');
     writeFileSync(output, Buffer.from(screenshot.data, 'base64'));
@@ -412,7 +684,7 @@ try {
         writeFileSync(join(resolve(destination), reportName + '-' + change.id + '.png'), Buffer.from(changeImage.data, 'base64'));
       }
     }
-    results.push({ ...layout, diagramText, diagramRouting, brandArtwork, packetMotion, staticPackets, contrast, reducedMotion, screenshot: output });
+    results.push({ ...layout, nativeMotion, diagramText, connectionBadges, diagramRouting, brandArtwork, packetMotion, sequenceMotion, scenarioMotion, responsiveSequence, staticPackets, staticScenarios, contrast, reducedMotion, reducedPlayback, printMotion, printScenarios, screenshot: output });
   }
   if (pageErrors.length) throw new Error(pageErrors.join('; '));
   console.log(JSON.stringify({ checks: results, pageErrors }, null, 2));

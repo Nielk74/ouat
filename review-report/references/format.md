@@ -93,7 +93,57 @@ For a graph, each edge requires `from`, `to`, `label`, and `status`; optional `a
 }
 ```
 
-`animate: true` is accepted only for `new` and `changed` elements/connections. Use it sparingly for the most significant difference. Nodes/elements use a brief local outline pulse. Edges with `transport: "message"` move a small package from source toward destination using the same routed path; other animated edges retain brief directional line emphasis. No extra animation field or coordinates are needed. Choose message transport only for an actual or explicitly proposed payload transfer, not merely to obtain this effect. The package remains upright and leaves terminal space clear. Number plates sit beside package routes so both remain visible. Packages loop automatically every three seconds, including after the user reads Context, with a keyboard-accessible native Pause packets checkbox per relevant diagram. The cadence illustrates direction only: it is not measured throughput, latency, or ordering. Page and text remain stationary. More than two animated objects in a visual produces a warning. Reduced-motion and print rendering keep static packages and never animate.
+`animate: true` is accepted only for `new` and `changed` elements/connections. For a meaningful transfer, pair it with `transport: "message"` to move an envelope, or `transport: "deploy"` to move a deployment-artifact package. Both use high-contrast filled markers following the same routed path as the arrow. No coordinates are needed. Choose transport from the actual or explicitly proposed behavior; spawn/config links are not package transfers. Other animated edges retain brief directional line emphasis, and nodes/elements use a brief outline pulse. Markers stay upright, leave terminal space clear, and keep number plates beside the transfer corridor. They loop every three seconds, including after the reader spends time in Context. The cadence illustrates direction only, not measured throughput, latency, or ordering. Page and text remain stationary. More than two animated objects in a visual produces a warning. Connection status is a compact badge beside the direction and transport, wrapping naturally on narrow screens; the explanation is on the next line.
+
+One native, keyboard-accessible **System / Play / Pause** control manages all report motion. System is the default and respects `prefers-reduced-motion`; it explains why the report is static. Play is explicit consent to animate this page despite that preference, without modifying the operating system. Pause freezes ongoing playback, including after Play under reduced motion. System reduced-motion views keep static markers and all explanations; printing is always static regardless of the selected mode. Do not assume an animation is broken before checking the actual viewer preference.
+
+### Consequence scenarios
+
+For a problem-driven graph, choose a `scenario` that shows the failure mechanism and its visible outcome. All four patterns use the same small contract:
+
+```json
+"scenario": {
+  "template": "interrupted-work",
+  "from": "request",
+  "at": "export",
+  "to": "db",
+  "condition": "The API process stops while this export is running.",
+  "cause": "The request and export share the API process lifetime, without a durable handoff.",
+  "consequence": "This unfinished export is interrupted; this attempt stores no completed result."
+}
+```
+
+Every field is required. `from`, `at`, and `to` identify three distinct existing graph nodes: upstream participant, affected component, and downstream outcome. The graph must contain a `from → at` edge and a `from → to` or `at → to` edge. The scenario references the normal workflow; it does not add fictional transport links. If the real relationship cannot be represented this way, choose a focused static explanation instead.
+
+| Pattern | Choose it when supported | Visible mechanism and consequence |
+| --- | --- | --- |
+| `interrupted-work` | Work and its initiating request share a process lifetime, and that process stops before completion | Progress stops unfinished, the process becomes STOPPED, the job gains an interruption mark, and this attempt stores no completed result |
+| `message-loss` | A message fails to reach the receiver on the illustrated attempt | An envelope travels, disappears with a loss mark, and the receiver remains without that delivery |
+| `bottleneck` | Arrivals outpace a slower stage | Pending work accumulates while processing continues; later work waits longer |
+| `saturation` | A finite resource has no free capacity for new work | Slots fill, the component becomes full, and new work waits while existing work remains active |
+
+`interrupted-work` requires `from` and `at` to share an explicit `groups` boundary with `kind: "process"`; a shared server is not sufficient. `message-loss` requires the incoming and downstream relationships to use `transport: "message"`. A scenario cannot share its graph with `sequence` or `animate` elements: independent loops could imply success after the illustrated failure. Separate those explanations into different visuals.
+
+Use inspected facts or explicitly conditional hypotheses for `condition`, `cause`, and `consequence`. Awaiting an operation alone does not establish CPU saturation, throughput, or queue capacity; a queue icon does not establish durability. Message loss is not a stand-in for unfinished local execution. The missing-result symbol concerns **this attempt**, not deletion of the database's prior records or a guarantee that retrying can never succeed. Bottleneck and saturation graphics show illustrative items/slots, not measured or configured counts. The validator checks structure and relationships, not whether the evidence supports the diagnosis.
+
+The renderer owns the twelve-second cycle: activity develops, the failure condition becomes visible, and the outcome is held for the latter half before replay. Condition, cause, consequence, and the three labeled stages always remain readable. Static reduced-motion and print views show the held failure state rather than an unexplained busy state. Baseline change statuses stay `unchanged`; stopped, lost, backlogged, and full are separate runtime states. The original topology remains beneath the focused scenario for context. Verify the start, transition, and held outcome, not just that an animation exists.
+
+### Ordered baseline behavior
+
+Graph templates optionally accept `sequence`, an ordered array of two to five steps. Each step requires a plain-text `label` and exactly one target:
+
+- `edge`: a **1-based connection number**, matching the arrow/list numbering. It must be a request, message, read, write, or deployment transfer; an omitted transport means request. Do not also set `animate` on that edge.
+- `node`: a local node ID for a waiting step. That node must have an `issue` explaining what it waits for and the consequence.
+
+```json
+"sequence": [
+  {"edge": 1, "label": "Request enters API"},
+  {"node": "request", "label": "Request waits for export"},
+  {"edge": 3, "label": "Store result; then reply"}
+]
+```
+
+Array order is authored causal order, not inferred from topology. In Context, existing nodes and edges remain `unchanged`; sequence is distinct from delta emphasis. Request/read/write signals use a neutral dot rather than pretending synchronous calls are queued messages. Messages and deployment artifacts retain their proper glyphs. The waiting step shows a clock and moving problem outline; a synchronized step strip explains each phase. The renderer loops fixed illustrative four-second phases, not measured durations. All labels and issue notes remain visible when motion is disabled; static views show the transfer markers and waiting indication without claiming an active phase. Keep factual order supported by inspection, or explicitly mark it illustrative in Plan mode. A normal completion sequence does not depict a failed attempt: use a consequence scenario or explicit failure-state diagram when interruption, loss, or overload is the problem. Split longer explanations instead of supplying geometry or timing fields.
 
 ### Before / after example
 
@@ -168,4 +218,4 @@ For optional browser verification, `scripts/preview_check.mjs` uses Node 22+ and
 node <skill-folder>/scripts/preview_check.mjs report.html previews <browser-executable>
 ```
 
-It checks desktop/tablet/narrow layout, visible sections, node text and boundary-title fit, arrow direction and destination gaps, paths avoiding nodes/headings, distinct connector segments, unobstructed connection numbers, package trajectory and automatic looping after a reading delay, labeled pause/resume controls, representative text contrast (including diff tokens and problem explanations), brief decorative emphasis, and static packages with reduced motion. It saves baseline/change screenshots. This is a focused preview check, not a complete accessibility audit. Python validation/rendering does not require this browser helper.
+It checks desktop/tablet/narrow layout, visible sections, node text and boundary-title fit, arrow direction and destination gaps, paths avoiding nodes/headings, distinct connector segments, unobstructed connection numbers, actual marker trajectory and automatic looping after a reading delay, synchronized sequence phases, consequence-scenario start and held outcome, representative text contrast (including diff tokens and problem explanations), and bounded decorative emphasis. It records the native preference before emulation and verifies System/Play/Pause under reduced motion plus static printing. It saves baseline/change screenshots. This is a focused preview check, not a complete accessibility audit or an evidence check for the claimed mechanism. Python validation/rendering does not require this browser helper.

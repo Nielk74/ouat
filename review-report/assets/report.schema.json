@@ -67,6 +67,23 @@
         "detail": {"$ref": "#/$defs/text"}
       }
     },
+    "sequenceStep": {
+      "type": "object", "additionalProperties": false, "required": ["label"],
+      "properties": {
+        "label": {"$ref": "#/$defs/text"},
+        "edge": {"type": "integer"}, "node": {"$ref": "#/$defs/id"}
+      }
+    },
+    "scenario": {
+      "type": "object", "additionalProperties": false,
+      "required": ["template", "from", "at", "to", "condition", "cause", "consequence"],
+      "properties": {
+        "template": {"type": "string", "enum": ["interrupted-work", "message-loss", "bottleneck", "saturation"]},
+        "from": {"$ref": "#/$defs/id"}, "at": {"$ref": "#/$defs/id"}, "to": {"$ref": "#/$defs/id"},
+        "condition": {"$ref": "#/$defs/text"}, "cause": {"$ref": "#/$defs/text"},
+        "consequence": {"$ref": "#/$defs/text"}
+      }
+    },
     "code": {
       "type": "object", "additionalProperties": false, "required": ["summary", "before", "after"],
       "properties": {
@@ -101,7 +118,9 @@
             "caption": {"$ref": "#/$defs/text"},
             "nodes": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/node"}},
             "edges": {"type": "array", "items": {"$ref": "#/$defs/edge"}},
-            "groups": {"type": "array", "items": {"$ref": "#/$defs/group"}}
+            "groups": {"type": "array", "items": {"$ref": "#/$defs/group"}},
+            "sequence": {"type": "array", "minItems": 2, "maxItems": 5, "items": {"$ref": "#/$defs/sequenceStep"}},
+            "scenario": {"$ref": "#/$defs/scenario"}
           }
         },
         {

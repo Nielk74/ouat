@@ -162,21 +162,139 @@ h3 { font-size: 20px; letter-spacing: -.01em; }
 .graph .connector { stroke-width: 2.2; stroke-opacity: .95; }
 .graph .connector-halo { fill: none; stroke: var(--editor); stroke-width: 7; stroke-linejoin: round; stroke-linecap: round; }
 .graph .connector { stroke-linejoin: round; stroke-linecap: round; }
-.graph .message-packet { offset-position: 0px 0px; offset-anchor: 0px 0px; offset-rotate: 0deg; offset-distance: 35%; color: var(--tone); pointer-events: none; animation: packet-transfer 3s linear infinite; }
-.has-packets:has(.packet-pause:checked) .message-packet { animation-play-state: paused; }
+.graph .message-packet { offset-position: 0px 0px; offset-anchor: 0px 0px; offset-rotate: 0deg; offset-distance: 35%; color: var(--tone); pointer-events: none; animation: packet-transfer 3s linear infinite; animation-delay: -1.2s; }
+.graph .packet-body { fill: var(--tone); stroke: var(--editor); stroke-width: 2; }
+.graph .packet-symbol { color: var(--editor); --packet-surface: var(--tone); }
+:root:has(#motion-pause:checked) *, :root:has(#motion-pause:checked) *::before, :root:has(#motion-pause:checked) *::after { animation-play-state: paused !important; }
 /* The routed path is shared with the connector. The parcel stays upright and
    travels only inside the route, leaving the source and arrowhead unobstructed. */
 @keyframes packet-transfer {
   0% { offset-distance: 18px; opacity: 0; }
-  10%, 85% { opacity: 1; }
+  3%, 94% { opacity: 1; }
   100% { offset-distance: calc(100% - 25px); opacity: 0; }
 }
 .packet-guidance { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 3px 14px; background: #26282b; color: var(--muted); border-bottom: 1px solid var(--line); font-size: 13px; }
 .packet-guidance .ui-icon { color: var(--new); }
-.packet-control { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-left: auto; cursor: pointer; color: var(--ink); }
-.packet-pause { accent-color: var(--new); width: 16px; height: 16px; }
-.packet-pause:focus-visible { outline: 2px solid var(--new); outline-offset: 3px; }
+.packet-guidance > a { margin-left: auto; min-height: 44px; display: inline-flex; align-items: center; }
 .packet-static-hint { display: none; }
+.motion-controls { position: sticky; top: 8px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; padding: 8px 12px; margin: 18px 0; border: 1px solid var(--line); border-radius: 6px; background: var(--chrome); scroll-margin-top: 12px; }
+.motion-controls fieldset { display: flex; align-items: center; gap: 10px; margin: 0; padding: 0; border: 0; min-width: 0; }
+.motion-controls legend { float: left; padding: 0; margin-right: 12px; font-size: 13px; font-weight: 600; }
+.motion-options { display: flex; align-items: center; gap: 0; }
+.motion-options input { accent-color: var(--new); width: 16px; height: 16px; margin: 0 5px 0 8px; }
+.motion-options label { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 0 6px; font-size: 13px; cursor: pointer; }
+.motion-options input:checked + label { color: var(--new); font-weight: 650; }
+.motion-options input:focus-visible { outline: 2px solid var(--new); outline-offset: 3px; }
+.motion-controls p { margin: 0; font-size: 13px; color: var(--muted); }
+.section, .change { scroll-margin-top: 132px; }
+.behavior-pane-mobile { display: none; }
+.motion-system-reduced, .motion-playing, .motion-paused { display: none; }
+:root:has(#motion-play:checked) .motion-system-normal,
+:root:has(#motion-play:checked) .motion-system-reduced,
+:root:has(#motion-pause:checked) .motion-system-normal,
+:root:has(#motion-pause:checked) .motion-system-reduced { display: none; }
+:root:has(#motion-play:checked) .motion-playing,
+:root:has(#motion-pause:checked) .motion-paused { display: inline; }
+.behavior-phase { opacity: 0; animation: var(--phase-name) var(--phase-duration) steps(1, end) infinite; pointer-events: none; }
+.graph .behavior-travel { offset-position: 0px 0px; offset-anchor: 0px 0px; offset-rotate: 0deg; offset-distance: 35%; animation: behavior-travel 4s linear infinite; }
+.behavior-signal { fill: var(--ink); stroke: var(--editor); stroke-width: 2; }
+.behavior-signal-core { fill: var(--editor); }
+.behavior-wait-outline { fill: none; stroke: var(--risk); stroke-width: 3; stroke-dasharray: 8 5; animation: behavior-waiting 1.2s linear infinite; }
+.behavior-clock-face { fill: var(--risk); stroke: var(--editor); stroke-width: 2; }
+.behavior-clock-hands { fill: none; stroke: var(--editor); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.behavior-sequence { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 10px; list-style: none; padding: 0; margin: 18px 0 0; }
+.behavior-step { position: relative; display: flex; align-items: flex-start; gap: 10px; padding: 12px; background: var(--paper); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+.behavior-step > :not(.behavior-step-highlight) { position: relative; }
+.behavior-step-highlight { position: absolute; inset: 0; border: 2px solid var(--unchanged); border-radius: 5px; background: #b9bdc412; }
+.is-wait .behavior-step-highlight { border-color: var(--risk); background: #ff938a16; }
+.behavior-step-number { color: var(--ink); font: 13px var(--mono); margin-top: 3px; }
+.behavior-step strong { display: block; font-size: 14px; font-weight: 600; color: var(--ink); }
+.behavior-step div > span { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); }
+.is-wait .behavior-step-number, .is-wait strong { color: var(--risk); }
+.behavior-note { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+/* Shared clocks keep future steps hidden even during the first cycle. */
+@keyframes behavior-window-2-1 { 0% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes behavior-window-2-2 { 0% { opacity: 0; } 50% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes behavior-window-3-1 { 0% { opacity: 1; } 33.333333%, 100% { opacity: 0; } }
+@keyframes behavior-window-3-2 { 0% { opacity: 0; } 33.333333% { opacity: 1; } 66.666667%, 100% { opacity: 0; } }
+@keyframes behavior-window-3-3 { 0% { opacity: 0; } 66.666667% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes behavior-window-4-1 { 0% { opacity: 1; } 25%, 100% { opacity: 0; } }
+@keyframes behavior-window-4-2 { 0% { opacity: 0; } 25% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes behavior-window-4-3 { 0% { opacity: 0; } 50% { opacity: 1; } 75%, 100% { opacity: 0; } }
+@keyframes behavior-window-4-4 { 0% { opacity: 0; } 75% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes behavior-window-5-1 { 0% { opacity: 1; } 20%, 100% { opacity: 0; } }
+@keyframes behavior-window-5-2 { 0% { opacity: 0; } 20% { opacity: 1; } 40%, 100% { opacity: 0; } }
+@keyframes behavior-window-5-3 { 0% { opacity: 0; } 40% { opacity: 1; } 60%, 100% { opacity: 0; } }
+@keyframes behavior-window-5-4 { 0% { opacity: 0; } 60% { opacity: 1; } 80%, 100% { opacity: 0; } }
+@keyframes behavior-window-5-5 { 0% { opacity: 0; } 80% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes behavior-travel {
+  0% { offset-distance: 18px; opacity: 0; }
+  5%, 92% { opacity: 1; }
+  100% { offset-distance: calc(100% - 25px); opacity: 0; }
+}
+@keyframes behavior-waiting { to { stroke-dashoffset: -26; } }
+/* Consequence scenarios: live state -> failure mechanism -> visible outcome.
+   Defaults are the failed/delayed state so reduced-motion and print retain it. */
+.problem-scenario { padding: 20px; margin-bottom: 22px; border: 1px solid #a86b66; border-radius: 7px; background: #252426; }
+.scenario-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; color: var(--risk); }
+.scenario-heading h4 { font-size: 19px; margin: 0; color: var(--ink); }
+.scenario-heading > span { margin-left: auto; color: var(--muted); font-size: 12px; }
+.scenario-condition { font-size: 15px; margin: 12px 0; color: var(--ink); }
+.scenario-runtime { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 14px 0; padding: 10px 12px; border: 1px dashed #9b7a77; background: var(--editor); font-size: 14px; color: var(--ink); }
+.scenario-runtime > .scenario-state-pair { margin-left: auto; }
+.scenario-runtime > .entity-icon { color: var(--unchanged); }
+.scenario-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.scenario-card { min-width: 0; padding: 16px; border: 1px solid #73777f; border-radius: 6px; background: var(--editor); }
+.scenario-card-at { border-color: #c78278; background: #302627; }
+.scenario-component { display: flex; align-items: center; gap: 10px; }
+.scenario-component > .entity-icon { color: var(--unchanged); }
+.scenario-component div { min-width: 0; }
+.scenario-component span { color: var(--muted); font-size: 12px; }
+.scenario-component h5 { margin: 0; font-size: 17px; font-weight: 650; color: var(--ink); overflow-wrap: anywhere; }
+.scenario-card > .badge { margin: 10px 0 0; font-size: 12px; }
+.scenario-job-area { height: 78px; margin-top: 10px; display: grid; place-items: center; }
+.scenario-job-area > span { grid-area: 1 / 1; }
+.scenario-job-symbol { color: var(--changed); }
+.scenario-failure-mark { fill: var(--risk-bg); stroke: var(--risk); stroke-width: 2.8; stroke-linecap: round; }
+.scenario-input, .scenario-delay { display: grid; place-items: center; height: 78px; margin-top: 10px; color: var(--unchanged); }
+.scenario-delay svg { fill: none; stroke: var(--changed); stroke-width: 2.4; stroke-linecap: round; }
+.scenario-progress-track { height: 9px; overflow: hidden; background: var(--editor); border: 1px solid #7a6c69; border-radius: 3px; }
+.scenario-progress-fill { display: block; width: 100%; height: 100%; background: var(--changed); transform: scaleX(.55); transform-origin: left center; animation: scenario-progress 12s linear infinite; }
+.scenario-normal { opacity: 0; animation: scenario-before 12s steps(1, end) infinite; }
+.scenario-failure { opacity: 1; color: var(--risk); animation: scenario-after 12s steps(1, end) infinite; }
+.scenario-state-pair { display: grid; font: 12px var(--mono); }
+.scenario-state-pair > span { grid-area: 1 / 1; }
+.scenario-component-state { margin-top: 14px; min-height: 42px; padding-top: 10px; border-top: 1px solid #5b5052; font-size: 13px; }
+.scenario-graphic-note { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+.scenario-empty-result { position: relative; display: grid; place-items: center; width: 58px; height: 60px; margin: 20px auto 8px; border: 1px dashed #a47873; color: var(--muted); border-radius: 4px; }
+.scenario-empty-cross { position: absolute; right: -7px; bottom: -9px; display: grid; place-items: center; width: 25px; height: 25px; border-radius: 50%; background: var(--risk-bg); color: var(--risk); font: 23px/1 var(--sans); }
+.scenario-story { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 18px 0; padding: 0; list-style: none; }
+.scenario-story li { display: flex; align-items: flex-start; gap: 8px; color: var(--ink); font-size: 14px; }
+.scenario-story li > span { color: var(--risk); font: 13px var(--mono); margin-top: 3px; }
+.scenario-explanation { padding: 14px; background: var(--risk-bg); border-left: 3px solid var(--risk); }
+.scenario-explanation p { margin: 0; color: var(--ink); font-size: 15px; }
+.scenario-explanation p + p { margin-top: 8px; }
+.scenario-consequence strong { color: var(--risk); }
+.scenario-note { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
+.scenario-message-token { animation: scenario-message 12s linear infinite; }
+.scenario-backlog { display: flex; align-items: center; gap: 4px; height: 78px; padding-top: 10px; color: var(--changed); }
+.scenario-backlog-item { display: grid; place-items: center; width: 30px; height: 34px; background: #463628; border: 1px solid var(--changed); border-radius: 3px; animation: scenario-accumulate 12s steps(1, end) infinite; }
+.scenario-slow-worker { margin-left: auto; border-left: 2px solid var(--risk); padding-left: 8px; }
+.scenario-capacity { display: flex; justify-content: center; gap: 8px; padding-top: 14px; height: 78px; }
+.scenario-capacity-slot { display: grid; place-items: center; width: 44px; height: 40px; color: var(--changed); border: 1px solid var(--changed); background: #463628; border-radius: 4px; animation: scenario-accumulate 12s steps(1, end) infinite; }
+.scenario-item-2 { animation-name: scenario-accumulate-2; }
+.scenario-item-3 { animation-name: scenario-accumulate-3; }
+.scenario-item-4 { animation-name: scenario-accumulate-4; }
+.scenario-bottleneck .scenario-progress-fill { animation-name: scenario-slow-progress; transform: scaleX(.8); }
+@keyframes scenario-before { 0% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes scenario-after { 0% { opacity: 0; } 50%, 100% { opacity: 1; } }
+@keyframes scenario-progress { 0%, 10% { transform: scaleX(0); } 50%, 100% { transform: scaleX(.55); } }
+@keyframes scenario-slow-progress { 0% { transform: scaleX(0); } 90%, 100% { transform: scaleX(1); } }
+@keyframes scenario-message { 0% { transform: translateX(-48px); opacity: 1; } 45% { transform: translateX(0); opacity: 1; } 50%, 100% { transform: translateX(0); opacity: 0; } }
+@keyframes scenario-accumulate { 0%, 10% { opacity: 0; } 20%, 100% { opacity: 1; } }
+@keyframes scenario-accumulate-2 { 0%, 20% { opacity: 0; } 30%, 100% { opacity: 1; } }
+@keyframes scenario-accumulate-3 { 0%, 30% { opacity: 0; } 40%, 100% { opacity: 1; } }
+@keyframes scenario-accumulate-4 { 0%, 40% { opacity: 0; } 50%, 100% { opacity: 1; } }
 .graph .has-issue { --tone: var(--risk); }
 .graph .has-issue .node-box { fill: var(--risk-bg); stroke: var(--risk); }
 .graph .has-issue .node-status { fill: var(--unchanged); }
@@ -215,9 +333,11 @@ h3 { font-size: 20px; letter-spacing: -.01em; }
 .connections li > div { min-width: 0; }
 .connection-index { display: flex; align-items: center; justify-content: center; width: 27px; height: 25px; flex: 0 0 27px; border-radius: 3px; background: var(--chrome); border: 1px solid #767d88; color: #e2e3e5; margin: 0; font: 12px var(--mono); }
 .connection-direction { color: var(--ink); font-weight: 550; }
+.connection-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 3px 7px; }
+.connection-direction { min-width: 0; overflow-wrap: anywhere; }
 .connection-label { color: #d0d3d8; font-size: 14px; margin-top: 3px; }
-.connection-status { font-size: 12px; color: var(--tone); margin-left: auto; flex: 0 0 auto; }
-.transport-label { color: #c5c9d0; font: 12px var(--mono); margin-left: 7px; }
+.connection-status { display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; line-height: 18px; color: var(--tone); background: var(--tint); border: 1px solid color-mix(in srgb, var(--tone) 50%, transparent); border-radius: 3px; padding: 0 5px; flex: 0 0 auto; }
+.transport-label { color: #c5c9d0; font: 12px var(--mono); }
 .element { display: flex; gap: 14px; border-color: var(--tone); background: var(--tint); border-radius: 6px; border-left: 1px solid var(--tone); padding: 16px; }
 .element-art { width: 52px; height: 52px; flex: 0 0 52px; border-radius: 6px; background: #303236; display: flex; align-items: center; justify-content: center; }
 .element-copy { min-width: 0; }
@@ -248,6 +368,10 @@ h3 { font-size: 20px; letter-spacing: -.01em; }
 .footer { font-size: 12px; }
 .skip-link { background: var(--chrome); }
 @media (max-width: 900px) {
+  .scenario-cards, .scenario-story { grid-template-columns: minmax(0, 1fr); }
+  .scenario-story { gap: 8px; }
+  .behavior-pane-desktop { display: none; }
+  .behavior-pane-mobile { display: block; }
   .shell { display: block; max-width: 900px; padding: 24px; }
   .tool-rail { display: none; }
   .navigation { gap: 0 18px; }
@@ -262,6 +386,11 @@ h3 { font-size: 20px; letter-spacing: -.01em; }
   .graph-mobile .node-status { font-size: 13.5px; }
 }
 @media (max-width: 600px) {
+  .problem-scenario { padding: 14px; }
+  .scenario-heading > span { margin-left: 0; }
+  .motion-controls { gap: 0; }
+  .motion-controls fieldset { flex-wrap: wrap; gap: 0; }
+  .motion-controls legend { margin-right: 4px; }
   .shell { padding: 16px 12px 36px; }
   .workspace-bar { flex-wrap: wrap; gap: 10px 14px; padding-bottom: 16px; }
   .workspace-label { display: none; }
@@ -291,6 +420,11 @@ h3 { font-size: 20px; letter-spacing: -.01em; }
   .comparison tr { border-bottom-color: var(--line); }
 }
 @media print {
+  .behavior-pane-desktop { display: block; }
+  .behavior-pane-mobile { display: none; }
+  .motion-controls, .packet-guidance > a, .behavior-note > a { display: none; }
+  .behavior-phase { opacity: 1; }
+  .behavior-step-highlight { opacity: 0; }
   :root { --canvas: white; --paper: white; --ink: #262626; --muted: #555555; --line: #b7b7b7; }
   body { color: #262626; background: white; }
   .shell { display: block; padding: 0; }
@@ -302,7 +436,17 @@ h3 { font-size: 20px; letter-spacing: -.01em; }
   .graph-mobile { display: none; }
   .visual, .code-change, .risk { --paper: #26282b; --ink: #f0f1f2; --line: #494c52; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 }
-@media (prefers-reduced-motion: reduce), print {
-  .packet-loop-hint, .packet-control { display: none; }
-  .packet-static-hint { display: inline; }
+@media (prefers-reduced-motion: reduce) {
+  /* A fresh Pause must retain the static fallback before playback begins.
+     Play crosses this brief delay; subsequent Pause freezes the same clock. */
+  *, *::before, *::after { animation-delay: 1ms !important; }
+  .behavior-phase { opacity: 1; }
+  .behavior-step-highlight { opacity: 0; }
+  :root:not(:has(#motion-play:checked, #motion-pause:checked)) .packet-loop-hint,
+  :root:not(:has(#motion-play:checked)) .motion-system-normal { display: none; }
+  :root:has(#motion-system:checked) .motion-system-reduced,
+  :root:not(:has(#motion-play:checked, #motion-pause:checked)) .packet-static-hint { display: inline; }
+}
+@media print {
+  .packet-loop-hint, .packet-static-hint { display: none !important; }
 }

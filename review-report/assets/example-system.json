@@ -11,13 +11,13 @@
     "assumptions": ["The broker supports durable delivery and the existing results table has a unique job ID.", "The illustrative consume wrapper acknowledges only after its callback succeeds.", "RabbitMQ, PostgreSQL, and TeamCity are illustrative product choices here, not findings about this project."],
     "visual": {
       "template": "communication",
-      "caption": "Follow connections 01, 02, then 03: cron opens a request, the API executes the export inline, and the result is stored before replying. The red step and connection explain two problems in this hypothetical baseline: a long-lived request and an export whose lifetime is tied to the API process.",
+      "caption": "The diagram shows the normal completion path: cron calls the API, the export runs in that same process, then its result is stored. The failure scenario above stops the API before completion: the in-flight export is interrupted and this attempt stores no completed result. This does not delete previous results, rule out a later retry, or prove CPU saturation.",
       "groups": [
-        {"id": "api-runtime", "label": "Existing API runtime", "kind": "server"}
+        {"id": "api-runtime", "label": "API process", "kind": "process"}
       ],
       "nodes": [
         {"id": "cron", "label": "Export schedule", "kind": "cron", "status": "unchanged", "meta": "*/5 * * * *"},
-        {"id": "request", "label": "API request", "kind": "process", "group": "api-runtime", "status": "unchanged", "meta": "await buildExport()", "issue": "The response cannot finish until buildExport() completes. Long exports tie request duration to job duration; there is no asynchronous job handoff."},
+        {"id": "request", "label": "API request", "kind": "function", "group": "api-runtime", "status": "unchanged", "meta": "await buildExport()", "issue": "The response cannot finish until buildExport() completes. Long exports tie request duration to job duration; there is no asynchronous job handoff."},
         {"id": "export", "label": "Build export", "kind": "function", "group": "api-runtime", "status": "unchanged", "meta": "inline execution"},
         {"id": "db", "label": "Results database", "kind": "database", "brand": "postgresql", "status": "unchanged", "meta": "existing results"}
       ],
@@ -25,7 +25,13 @@
         {"from": "cron", "to": "request", "label": "Invoke the API; wait for its response", "transport": "request", "status": "unchanged"},
         {"from": "request", "to": "export", "label": "Run export inside this API process", "status": "unchanged", "issue": "The export shares the API process lifetime. If that process stops before completion, the in-flight execution is interrupted; no separate consumer can continue it."},
         {"from": "export", "to": "db", "label": "Store the result; only then return done", "transport": "write", "status": "unchanged"}
-      ]
+      ],
+      "scenario": {
+        "template": "interrupted-work", "from": "request", "at": "export", "to": "db",
+        "condition": "The API process stops while an export is still running.",
+        "cause": "The request and export share the same process lifetime. There is no durable handoff to an independent consumer.",
+        "consequence": "The unfinished export is interrupted: this attempt stores no completed result, and its request cannot return success. A later retry is not ruled out."
+      }
     }
   },
   "changes": [
@@ -49,13 +55,13 @@
         "nodes": [
           {"id": "api", "label": "API server", "kind": "server", "status": "changed"},
           {"id": "payload", "label": "ExportRequested", "kind": "message", "status": "new", "meta": "{ id, accountId }"},
-          {"id": "queue", "label": "Export queue", "kind": "queue", "brand": "rabbitmq", "status": "new", "meta": "exports.ready", "animate": true},
+          {"id": "queue", "label": "Export queue", "kind": "queue", "brand": "rabbitmq", "status": "new", "meta": "exports.ready"},
           {"id": "worker", "label": "Export consumer", "kind": "worker", "status": "new"}
         ],
         "edges": [
           {"from": "api", "to": "payload", "label": "Create stable job payload", "transport": "message", "status": "changed"},
           {"from": "payload", "to": "queue", "label": "Durable publish before returning", "transport": "message", "status": "new", "animate": true},
-          {"from": "queue", "to": "worker", "label": "Deliver job; acknowledge after persistence", "transport": "message", "status": "new"}
+          {"from": "queue", "to": "worker", "label": "Deliver job; acknowledge after persistence", "transport": "message", "status": "new", "animate": true}
         ]
       }
     },
@@ -119,7 +125,7 @@
           {"from": "process", "to": "thread-a", "label": "Assign a job", "transport": "spawn", "status": "new"},
           {"from": "process", "to": "thread-b", "label": "Assign another job", "transport": "spawn", "status": "new"},
           {"from": "thread-a", "to": "process", "label": "Return serialized artifact", "transport": "message", "status": "new", "animate": true},
-          {"from": "thread-b", "to": "process", "label": "Return serialized artifact", "transport": "message", "status": "new"},
+          {"from": "thread-b", "to": "process", "label": "Return serialized artifact", "transport": "message", "status": "new", "animate": true},
           {"from": "process", "to": "db", "label": "Upsert by job ID, then acknowledge", "transport": "write", "status": "new"}
         ]
       }
@@ -147,7 +153,7 @@
           {"id": "consumer", "label": "Export consumer", "kind": "worker", "status": "new"}
         ],
         "edges": [
-          {"from": "ci", "to": "host", "label": "Deploy worker service", "transport": "deploy", "status": "new"},
+          {"from": "ci", "to": "host", "label": "Deploy worker service", "transport": "deploy", "status": "new", "animate": true},
           {"from": "binding", "to": "host", "label": "Supply broker settings and credentials", "transport": "config", "status": "changed"},
           {"from": "host", "to": "consumer", "label": "Start and supervise consumer", "transport": "spawn", "status": "new"}
         ]

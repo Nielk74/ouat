@@ -10,7 +10,7 @@ import re
 import sys
 import textwrap
 
-from diagram import RouteError, graph_layout, path_data, route_graph
+from diagram import RouteError, graph_layout, packet_symbol, path_data, route_graph
 from brands import BRANDS, brand_surface, catalog_page, credits as brand_credits, selected as selected_brands, sprite as brand_sprite
 
 
@@ -114,6 +114,8 @@ def check_schema(value, schema, root, path="$", errors=None):
     if isinstance(value, list):
         if len(value) < schema.get("minItems", 0):
             errors.append(diagnostic(path, "Array has too few items.", f"Supply at least {schema['minItems']} item(s)."))
+        if "maxItems" in schema and len(value) > schema["maxItems"]:
+            errors.append(diagnostic(path, "Array has too many items.", f"Keep at most {schema['maxItems']} focused steps."))
         for index, item in enumerate(value):
             check_schema(item, schema.get("items", {}), root, f"{path}[{index}]", errors)
     return errors
@@ -145,6 +147,45 @@ def check_visual(visual, path):
             objects.append((edge, f"{path}.edges[{index}]"))
         if len(node_ids) > 10:
             diagnostics.append(diagnostic(path + ".nodes", "This graph contains more than ten nodes.", "Consider separating relationships into focused diagrams.", "warning"))
+        nodes = {node["id"]: node for node in visual["nodes"]}
+        if "scenario" in visual:
+            scenario = visual["scenario"]
+            scenario_path = path + ".scenario"
+            for field in ("from", "at", "to"):
+                if scenario[field] not in nodes:
+                    diagnostics.append(diagnostic(scenario_path + "." + field, "Scenario node does not exist.", "Reference a node declared in this graph."))
+            if len({scenario[field] for field in ("from", "at", "to")}) != 3:
+                diagnostics.append(diagnostic(scenario_path, "Scenario roles must identify three distinct nodes.", "Identify the upstream participant, affected component, and downstream outcome."))
+            if visual.get("sequence") or any(item.get("animate") for item in visual["nodes"]+visual["edges"]):
+                diagnostics.append(diagnostic(scenario_path, "Competing playback mechanisms would tell different stories.", "Use scenario alone in this graph; keep independent transfer loops or sequence in another visual."))
+            incoming = [edge for edge in visual["edges"] if edge["from"] == scenario["from"] and edge["to"] == scenario["at"]]
+            outgoing = [edge for edge in visual["edges"] if edge["from"] in (scenario["from"], scenario["at"]) and edge["to"] == scenario["to"]]
+            if not incoming:
+                diagnostics.append(diagnostic(scenario_path + ".from", "Upstream participant is not connected to the affected component.", "Select roles matching the actual graph; do not invent a connection to fit a template."))
+            if not outgoing:
+                diagnostics.append(diagnostic(scenario_path + ".to", "The outcome is not connected to this workflow.", "Select an existing downstream result, or use a focused static explanation."))
+            if scenario["template"] == "message-loss" and (not incoming or not outgoing or any(edge.get("transport") != "message" for edge in incoming+outgoing)):
+                diagnostics.append(diagnostic(scenario_path + ".template", "Message loss requires message-delivery relationships.", "Use message-loss for actual message delivery, not a synchronous request or unfinished local execution."))
+            if scenario["template"] == "interrupted-work" and scenario["from"] in nodes and scenario["at"] in nodes:
+                owner = nodes[scenario["at"]].get("group")
+                if not owner or nodes[scenario["from"]].get("group") != owner or not any(group["id"] == owner and group["kind"] == "process" for group in visual.get("groups", [])):
+                    diagnostics.append(diagnostic(scenario_path + ".at", "Shared process lifetime is not represented.", "Use interrupted-work when request and work share an explicit process boundary; do not infer this from a shared server."))
+        for index, step in enumerate(visual.get("sequence", [])):
+            step_path = f"{path}.sequence[{index}]"
+            if ("edge" in step) == ("node" in step):
+                diagnostics.append(diagnostic(step_path, "A sequence step needs exactly one target.", "Use edge (a 1-based connection number) for a transfer, or node for an explained wait."))
+            elif "edge" in step:
+                number = step["edge"]
+                if not 1 <= number <= len(visual["edges"]):
+                    diagnostics.append(diagnostic(step_path + ".edge", "Connection number is out of range.", f"Choose an existing connection from 1 to {len(visual['edges'])}."))
+                elif visual["edges"][number-1].get("transport", "request") not in ("request", "message", "read", "write", "deploy"):
+                    diagnostics.append(diagnostic(step_path + ".edge", "This relationship does not describe a transfer.", "Sequence a real request/data transfer; do not animate configuration, spawn, or trigger links as payloads."))
+                elif visual["edges"][number-1].get("animate"):
+                    diagnostics.append(diagnostic(step_path + ".edge", "Two animation mechanisms target this connection.", "Remove animate from this edge; sequence owns its ordered playback."))
+            elif step["node"] not in nodes:
+                diagnostics.append(diagnostic(step_path + ".node", "Sequence node does not exist.", "Use a node ID declared in this visual."))
+            elif "issue" not in nodes[step["node"]]:
+                diagnostics.append(diagnostic(step_path + ".node", "Waiting has no causal explanation.", "Add issue to this node explaining what it waits for and why that matters."))
     else:
         for key in ("before", "after"):
             objects.extend((obj, f"{path}.{key}[{index}]") for index, obj in enumerate(visual.get(key, [])))
@@ -243,6 +284,10 @@ def element(obj, mode, allow_motion=True):
     return f'<div class="element status-{obj["status"]}{motion}"><div class="element-art">{icon(kind, 42, obj.get("brand"))}</div><div class="element-copy"><span class="entity-kind">{KINDS[kind]}</span>{badge(obj["status"], mode)}<h4>{text(obj["label"])}</h4>{meta}{detail}</div></div>'
 
 
+def phase_style(index, count):
+    return f'--phase-name: behavior-window-{count}-{index+1}; --phase-duration: {count*4}s;'
+
+
 def render_graph_svg(visual, mode, prefix, vertical=False):
     geometry = route_graph(visual, vertical)
     positions, width, height = geometry["positions"], geometry["width"], geometry["height"]
@@ -265,11 +310,19 @@ def render_graph_svg(visual, mode, prefix, vertical=False):
         coordinates = ";".join(f"{x:g},{y:g}" for x, y in route["points"])
         pieces.append(f'<g class="edge status-{edge["status"]} transport-{transport}{emphasis}" data-edge="{index}" data-from="{edge["from"]}" data-to="{edge["to"]}"><path class="connector-halo" d="{path}"/><path class="connector" data-points="{coordinates}" d="{path}" marker-end="url(#{prefix}-{marker}-arrow)"/>')
         if edge.get("animate"):
-            if transport == "message":
+            symbol = packet_symbol(edge)
+            if symbol:
                 motion_style = text(f'offset-path: path("{path}");')
-                pieces.append(f'<g class="message-packet" style="{motion_style}" aria-hidden="true"><use href="#ui-package" x="-12" y="-12" width="24" height="24"/></g>')
+                pieces.append(f'<g class="message-packet" style="{motion_style}" aria-hidden="true"><rect class="packet-body" x="-12" y="-12" width="24" height="24" rx="5"/><use class="packet-symbol" href="#ui-{symbol}" x="-10" y="-10" width="20" height="20"/></g>')
             else:
                 pieces.append(f'<path class="connector-emphasis" d="{path}"/>')
+        for step_index, step in enumerate(visual.get("sequence", [])):
+            if step.get("edge") == index:
+                style = phase_style(step_index, len(visual["sequence"]))
+                travel_style = text(f'offset-path: path("{path}");')
+                symbol = {"message": "message", "deploy": "package"}.get(transport)
+                artwork = f'<rect class="packet-body" x="-12" y="-12" width="24" height="24" rx="5"/><use class="packet-symbol" href="#ui-{symbol}" x="-10" y="-10" width="20" height="20"/>' if symbol else '<circle class="behavior-signal" r="7"/><circle class="behavior-signal-core" r="2"/>'
+                pieces.append(f'<g class="behavior-phase behavior-transfer" data-step="{step_index+1}" style="{style}" aria-hidden="true"><g class="behavior-travel" style="{travel_style}">{artwork}</g></g>')
         pieces.append('</g>')
     for index, route in enumerate(geometry["routes"], 1):
         x, y = route["label"]
@@ -286,6 +339,10 @@ def render_graph_svg(visual, mode, prefix, vertical=False):
             pieces.append(f'<use class="node-issue-icon" href="#ui-alert" x="{x+w-26}" y="{y+8}" width="17" height="17"/>')
         if node.get("animate"):
             pieces.append(f'<rect class="node-emphasis" x="{x-2}" y="{y-2}" width="{w+4}" height="{h+4}" rx="9"/>')
+        for step_index, step in enumerate(visual.get("sequence", [])):
+            if step.get("node") == node["id"]:
+                style = phase_style(step_index, len(visual["sequence"]))
+                pieces.append(f'<g class="behavior-phase behavior-wait" data-step="{step_index+1}" style="{style}" aria-hidden="true"><rect class="behavior-wait-outline" x="{x+4}" y="{y+4}" width="{w-8}" height="{h-8}" rx="5"/><g transform="translate({x+59} {y+76})"><circle class="behavior-clock-face" r="11"/><path class="behavior-clock-hands" d="M 0 -6 V 0 L 4 2"/></g></g>')
         pieces.append(f'<text class="node-kind" x="{x+80}" y="{y+22}">{text(KINDS[kind].upper())}</text>')
         for index, line in enumerate(lines):
             pieces.append(f'<text class="node-label" x="{x+80}" y="{y+48+index*22}">{text(line)}</text>')
@@ -299,8 +356,89 @@ def render_graph_svg(visual, mode, prefix, vertical=False):
     return ''.join(pieces)
 
 
+SCENARIOS = {
+    "interrupted-work": {
+        "title": "Process stop interrupts in-flight work",
+        "normal": ("Response stays open", "Work in progress", "Waiting for this result"),
+        "failed": ("Response interrupted", "Execution interrupted", "No result from this attempt"),
+        "stages": ("Request and work are active", "Process stops before completion", "No result is stored by this attempt"),
+    },
+    "message-loss": {
+        "title": "A message is lost before delivery",
+        "normal": ("Message sent", "In transit", "Waiting for delivery"),
+        "failed": ("Sent is not received", "Delivery lost", "Not received on this attempt"),
+        "stages": ("Sender hands off a message", "Message disappears before delivery", "Receiver gets no message on this attempt"),
+    },
+    "bottleneck": {
+        "title": "Work arrives faster than it is processed",
+        "normal": ("Work arriving", "Processing slowly", "Completion takes time"),
+        "failed": ("More arrivals", "Backlog accumulating", "Later work waits longer"),
+        "stages": ("Work keeps arriving", "Pending work piles up at the slow stage", "Some work completes; the backlog remains"),
+    },
+    "saturation": {
+        "title": "New work reaches an occupied capacity limit",
+        "normal": ("Work arriving", "Capacity filling", "Existing work is active"),
+        "failed": ("New work waits", "No free slot", "New work cannot complete yet"),
+        "stages": ("Available capacity is occupied", "More work arrives while slots are full", "New work must wait for capacity"),
+    },
+}
+
+
+def render_scenario(visual, mode):
+    scenario = visual["scenario"]
+    template = scenario["template"]
+    pattern = SCENARIOS[template]
+    nodes = {node["id"]: node for node in visual["nodes"]}
+    failure = '<svg class="scenario-failure-mark" width="44" height="44" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="18"/><path d="m15 15 14 14m0-14L15 29"/></svg>'
+    pieces = [f'<div class="problem-scenario scenario-{template}" data-scenario="{template}" role="group" aria-label="Consequence scenario: {text(pattern["title"])}"><div class="scenario-heading">{ui_icon("alert", 22)}<h4>{text(pattern["title"])}</h4><span>Illustrative failure scenario</span></div><p class="scenario-condition"><strong>Condition:</strong> {text(scenario["condition"])}</p>']
+    if template == "interrupted-work":
+        group = next(group for group in visual["groups"] if group["id"] == nodes[scenario["at"]]["group"])
+        pieces.append(f'<p class="scenario-runtime">{icon("process", 22)}<strong>{text(group["label"])}</strong><span class="scenario-state-pair" aria-hidden="true"><span class="scenario-normal">Process running</span><span class="scenario-failure">PROCESS STOPPED</span></span></p>')
+    pieces.append('<div class="scenario-cards">')
+    for index, role in enumerate(("from", "at", "to")):
+        node = nodes[scenario[role]]
+        pieces.append(f'<div class="scenario-card scenario-card-{role}" data-node-ref="{node["id"]}"><div class="scenario-component">{icon(node.get("kind", "generic"), 36, node.get("brand"))}<div><span>{text(KINDS[node.get("kind", "generic")])}</span><h5>{text(node["label"])}</h5></div></div>{badge(node["status"], mode)}')
+        if role == "at":
+            if template in ("interrupted-work", "message-loss"):
+                glyph = "message" if template == "message-loss" else "file"
+                pieces.append(f'<div class="scenario-job-area" aria-hidden="true"><span class="scenario-normal scenario-job-symbol{ " scenario-message-token" if template == "message-loss" else ""}">{ui_icon(glyph, 42)}</span><span class="scenario-failure">{failure}</span></div>')
+                if template == "interrupted-work":
+                    pieces.append('<div class="scenario-progress-track" aria-hidden="true"><span class="scenario-progress-fill"></span></div><p class="scenario-graphic-note">Work stops unfinished</p>')
+            elif template == "bottleneck":
+                pieces.append('<div class="scenario-backlog" aria-hidden="true">' + ''.join(f'<span class="scenario-backlog-item scenario-item-{item}">{ui_icon("file", 24)}</span>' for item in range(1, 5)) + '<span class="scenario-slow-worker">'+ui_icon("code", 30)+'</span></div><div class="scenario-progress-track" aria-hidden="true"><span class="scenario-progress-fill"></span></div><p class="scenario-graphic-note">Pending work accumulates</p>')
+            else:
+                pieces.append('<div class="scenario-capacity" aria-hidden="true">' + ''.join(f'<span class="scenario-capacity-slot scenario-item-{item}">{ui_icon("code", 26)}</span>' for item in range(1, 4)) + '</div><p class="scenario-graphic-note">Illustrative slots — not a configured count</p>')
+        if role == "to":
+            if template in ("interrupted-work", "message-loss"):
+                pieces.append('<div class="scenario-empty-result" aria-hidden="true">'+ui_icon("file", 34)+'<span class="scenario-empty-cross">×</span></div><p class="scenario-graphic-note">No '+ ('delivery on this attempt' if template == "message-loss" else 'completed result from this attempt')+'</p>')
+            else:
+                pieces.append('<div class="scenario-delay" aria-hidden="true"><svg width="42" height="42" viewBox="0 0 42 42"><circle cx="21" cy="21" r="17"/><path d="M21 10v11l8 4"/></svg></div><p class="scenario-graphic-note">'+ ('Throughput continues, but work queues up' if template == "bottleneck" else 'New work waits; active work is not lost')+'</p>')
+        if role == "from":
+            pieces.append('<div class="scenario-input" aria-hidden="true">'+ui_icon("message" if template == "message-loss" else "file", 38)+'</div>')
+        pieces.append(f'<div class="scenario-state-pair scenario-component-state" aria-hidden="true"><span class="scenario-normal">{text(pattern["normal"][index])}</span><span class="scenario-failure">{text(pattern["failed"][index])}</span></div></div>')
+    pieces.append('</div><ol class="scenario-story" aria-label="Failure mechanism and result">')
+    pieces.extend(f'<li><span>{index:02d}</span>{text(stage)}</li>' for index, stage in enumerate(pattern["stages"], 1))
+    pieces.append(f'</ol><div class="scenario-explanation"><p><strong>Cause:</strong> {text(scenario["cause"])}</p><p class="scenario-consequence"><strong>Consequence:</strong> {text(scenario["consequence"])}</p></div><p class="scenario-note">Runtime states, not change statuses. Illustrative timing and capacity; the failure state remains visible when motion is reduced or printed. <a href="#motion-controls">Motion controls</a></p></div>')
+    return ''.join(pieces)
+
+
 def render_graph(visual, mode, prefix):
     pieces = [render_graph_svg(visual, mode, prefix + "-desktop"), render_graph_svg(visual, mode, prefix + "-mobile", True)]
+    if "scenario" in visual:
+        pieces.insert(0, render_scenario(visual, mode))
+    if visual.get("sequence"):
+        steps = ['<ol class="behavior-sequence" aria-label="Behavior playback steps">']
+        for index, step in enumerate(visual["sequence"]):
+            target = f'Wait at {next(node["label"] for node in visual["nodes"] if node["id"] == step["node"])}' if "node" in step else f'Connection {step["edge"]:02d}'
+            problem = " is-wait" if "node" in step else ""
+            steps.append(f'<li class="behavior-step{problem}"><span class="behavior-phase behavior-step-highlight" data-step="{index+1}" style="{phase_style(index, len(visual["sequence"]))}" aria-hidden="true"></span><span class="behavior-step-number">{index+1:02d}</span><div><strong>{text(step["label"])}</strong><span>{text(target)}</span></div></li>')
+        steps.append('</ol>')
+        strip = ''.join(steps)
+        # Display switches restart CSS animations. Pair each canvas and strip so
+        # their clocks restart together, instead of misleadingly diverging.
+        pieces = [f'<div class="behavior-pane behavior-pane-{orientation}">{svg}{strip}</div>' for orientation, svg in zip(("desktop", "mobile"), pieces)]
+        waiting_note = " The clock marks waiting." if any("node" in step for step in visual["sequence"]) else ""
+        pieces.append(f'<p class="behavior-note">Ordered illustration, not measured timing.{waiting_note} Motion does not indicate change status. <a href="#motion-controls">Motion controls</a></p>')
     details = [node for node in visual["nodes"] if "detail" in node]
     if details:
         pieces.append('<div class="node-details">')
@@ -316,7 +454,7 @@ def render_graph(visual, mode, prefix):
         for index, edge in enumerate(visual["edges"], 1):
             direction = f'{text(labels[edge["from"]])} → {text(labels[edge["to"]])}'
             transport = f'<span class="transport-label">{text(edge["transport"])}</span>' if "transport" in edge else ""
-            pieces.append(f'<li class="status-{edge["status"]}"><span class="connection-index">{index:02d}</span><div><span class="connection-direction">{direction}</span>{transport}<span class="connection-label">{text(edge["label"])}</span></div><span class="connection-status">{text(LABELS[edge["status"]])}</span></li>')
+            pieces.append(f'<li class="status-{edge["status"]}"><span class="connection-index">{index:02d}</span><div><span class="connection-heading"><span class="connection-direction">{direction}</span>{transport}<span class="connection-status">{text(LABELS[edge["status"]])}</span></span><span class="connection-label">{text(edge["label"])}</span></div></li>')
         pieces.append('</ol>')
     issues = [(node["label"], node["issue"]) for node in visual["nodes"] if "issue" in node]
     issues += [(f'Connection {index:02d}: {labels[edge["from"]]} → {labels[edge["to"]]}', edge["issue"]) for index, edge in enumerate(visual["edges"], 1) if "issue" in edge]
@@ -389,12 +527,14 @@ def render_visual(visual, mode, prefix, baseline=False):
     note = "Illustrative starting point" if baseline and mode == "plan" else "Before the change" if baseline else "Relationship view"
     legend = f'<div class="problem-key">{ui_icon("alert", 17)}Problem in existing behavior — not a change status</div>' if any("issue" in item for item in visual.get("nodes", [])+visual.get("edges", [])) else ""
     classes = "visual visual-baseline" if baseline else "visual"
-    packet = any(edge.get("animate") and edge.get("transport") == "message" for edge in visual.get("edges", []))
+    symbols = {packet_symbol(edge) for edge in visual.get("edges", [])} - {None}
+    packet = bool(symbols)
     focus = f' aria-describedby="{prefix}-packet-note"' if packet else ""
     guidance = ""
     if packet:
         classes += " has-packets"
-        guidance = f'<div class="packet-guidance" id="{prefix}-packet-note">{ui_icon("package", 18)}<span>Packet shows message direction.<span class="packet-loop-hint"> Repeats automatically; not a measured rate.</span><span class="packet-static-hint"> Static in reduced-motion and print views.</span></span><label class="packet-control" for="{prefix}-pause"><input class="packet-pause" type="checkbox" id="{prefix}-pause">Pause packets</label></div>'
+        meaning = "Envelopes: messages. Packages: deployment artifacts." if len(symbols) == 2 else "Moving envelope: message delivery." if "message" in symbols else "Moving package: deployment artifact."
+        guidance = f'<div class="packet-guidance" id="{prefix}-packet-note">{ui_icon("message" if "message" in symbols else "package", 18)}<span>{meaning}<span class="packet-loop-hint"> Repeats automatically; not a measured rate.</span><span class="packet-static-hint"> System motion is reduced; select Play to animate.</span></span><a href="#motion-controls">Motion controls</a></div>'
     return f'<figure class="{classes}"{focus}><div class="visual-heading">{ui_icon(visual_icon)}{text(heading)}<span class="visual-heading-note">{note}</span></div>{legend}{guidance}<div class="visual-content">{content}</div><figcaption>{text(visual["caption"])}</figcaption></figure>'
 
 
@@ -426,6 +566,10 @@ def render(report):
     code_count = sum("code" in change for change in report["changes"])
     code_meta = f'<span>{code_count} summarized code changes</span>' if code_count else ''
     header = f'<header class="masthead"><div class="eyebrow">{mode_name} / {len(report["changes"])} focused updates</div><h1>{text(report["title"])}</h1>{summary}<div class="report-meta">{code_meta}<div class="legend" aria-label="Change status legend">{legend}</div></div><nav class="navigation" aria-label="Report sections">{navigation}</nav></header>'
+    visuals = [report["context"].get("visual", {})] + [change.get("visual", {}) for change in report["changes"]]
+    has_motion = any(visual.get("scenario") or visual.get("sequence") or any(item.get("animate") for key in ("nodes", "edges", "before", "after") for item in visual.get(key, [])) for visual in visuals)
+    if has_motion:
+        header += '<div class="motion-controls" id="motion-controls"><fieldset aria-describedby="motion-state"><legend>Diagram motion</legend><div class="motion-options"><input type="radio" name="diagram-motion" id="motion-system" checked><label for="motion-system">System</label><input type="radio" name="diagram-motion" id="motion-play"><label for="motion-play">Play</label><input type="radio" name="diagram-motion" id="motion-pause"><label for="motion-pause">Pause</label></div></fieldset><p id="motion-state"><span class="motion-system-normal">Following system: animations on.</span><span class="motion-system-reduced">System reduced motion: static. Select Play to animate.</span><span class="motion-playing">Playing diagrams — report-only override.</span><span class="motion-paused">Diagrams paused.</span></p></div>'
     context = report["context"]
     body = '<div class="context-grid">'
     for key, label in (("problem", "Problem / goal"), ("baseline", "Comparison baseline")):
