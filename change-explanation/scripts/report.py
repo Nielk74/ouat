@@ -5,12 +5,13 @@ import argparse
 import difflib
 from html import escape
 import json
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import re
 import sys
 import textwrap
+from urllib.parse import urlsplit
 
-from diagram import RouteError, graph_layout, packet_symbol, path_data, route_graph
+from diagram import RouteError, flow_signal, graph_layout, packet_symbol, path_data, route_graph
 from brands import BRANDS, brand_surface, catalog_page, credits as brand_credits, selected as selected_brands, sprite as brand_sprite
 
 
@@ -70,6 +71,22 @@ def check_schema(value, schema, root, path="$", errors=None):
         for part in schema["$ref"][2:].split("/"):
             target = target[part]
         return check_schema(value, target, root, path, errors)
+    if "anyOf" in schema:
+        branches = []
+        for branch in schema["anyOf"]:
+            while "$ref" in branch:
+                target = root
+                for part in branch["$ref"][2:].split("/"):
+                    target = target[part]
+                branch = target
+            branches.append(branch)
+        alternatives = [check_schema(value, branch, root, path, []) for branch in branches]
+        if any(not items for items in alternatives):
+            return errors
+        matching = [items for branch, items in zip(branches, alternatives)
+                    if branch.get("type") == ("object" if isinstance(value, dict) else "string" if isinstance(value, str) else None)]
+        errors.extend(min(matching or alternatives, key=len))
+        return errors
     if "oneOf" in schema:
         # Each supported visual has a unique template discriminator. Selecting its
         # branch keeps errors actionable instead of reporting every other template.
@@ -99,6 +116,10 @@ def check_schema(value, schema, root, path="$", errors=None):
         elif "pattern" in schema and not re.search(schema["pattern"], value):
             errors.append(diagnostic(path, "Text does not match the required format.",
                                      "Use nonblank text; IDs start with a letter and contain letters, digits, underscores, or hyphens."))
+        if "maxLength" in schema and len(value) > schema["maxLength"]:
+            errors.append(diagnostic(path, "Text is too long.", f"Keep at most {schema['maxLength']} characters."))
+    if type(value) is int and "minimum" in schema and value < schema["minimum"]:
+        errors.append(diagnostic(path, "Number is below the minimum.", f"Use a value of at least {schema['minimum']}."))
     if isinstance(value, dict):
         properties = schema.get("properties", {})
         for key in schema.get("required", []):
@@ -178,7 +199,7 @@ def check_visual(visual, path):
                 number = step["edge"]
                 if not 1 <= number <= len(visual["edges"]):
                     diagnostics.append(diagnostic(step_path + ".edge", "Connection number is out of range.", f"Choose an existing connection from 1 to {len(visual['edges'])}."))
-                elif visual["edges"][number-1].get("transport", "request") not in ("request", "message", "read", "write", "deploy"):
+                elif visual["edges"][number-1].get("transport", "request") not in ("flow", "request", "message", "read", "write", "deploy"):
                     diagnostics.append(diagnostic(step_path + ".edge", "This relationship does not describe a transfer.", "Sequence a real request/data transfer; do not animate configuration, spawn, or trigger links as payloads."))
                 elif visual["edges"][number-1].get("animate"):
                     diagnostics.append(diagnostic(step_path + ".edge", "Two animation mechanisms target this connection.", "Remove animate from this edge; sequence owns its ordered playback."))
@@ -216,11 +237,16 @@ def validate(report):
     diagnostics = check_schema(report, schema, schema)
     if diagnostics:
         return diagnostics
+    if "summary" not in report:
+        diagnostics.append(diagnostic("$.summary", "No opening summary is supplied.", "For new explanations, add two short sentences stating the change and its main consequence.", "warning"))
     ids = set()
     for index, change in enumerate(report["changes"]):
         if change["id"] in ids:
             diagnostics.append(diagnostic(f"$.changes[{index}].id", "Duplicate change ID.", "Give each change a unique ID."))
         ids.add(change["id"])
+        for source_index, source in enumerate(change.get("evidence", [])):
+            if isinstance(source, dict) and "url" in source and not safe_source_url(source["url"]):
+                diagnostics.append(diagnostic(f"$.changes[{index}].evidence[{source_index}].url", "Source URL is unsafe or not absolute.", "Use a verified http, https, file, codex, or vscode source URL."))
         if "visual" in change:
             diagnostics.extend(check_visual(change["visual"], f"$.changes[{index}].visual"))
         if "code" in change:
@@ -231,8 +257,6 @@ def validate(report):
                 diagnostics.append(diagnostic(f"$.changes[{index}].code", "Code excerpt exceeds twelve lines on one side.", "Summarize the relevant change instead of copying the complete file.", "warning"))
     if "visual" in report["context"]:
         diagnostics.extend(check_visual(report["context"]["visual"], "$.context.visual"))
-    elif report["changes"]:
-        diagnostics.append(diagnostic("$.context.visual", "No baseline behavior diagram is supplied.", "For a problem-driven report, add a baseline flow explaining the failure mechanism before showing the solution; omit only when a diagram adds no useful context.", "warning"))
     for section in ("impact", "manualChanges", "risks"):
         for index, item in enumerate(report.get(section, [])):
             if item["change"] not in ids:
@@ -250,6 +274,49 @@ def validate(report):
 
 def text(value):
     return escape(str(value), quote=True)
+
+
+def safe_source_url(value):
+    if any(ord(char) < 32 or ord(char) == 127 for char in value) or any(char.isspace() for char in value):
+        return None
+    try:
+        parsed = urlsplit(value)
+    except ValueError:
+        return None
+    if parsed.scheme.lower() not in ("http", "https", "file", "codex", "vscode"):
+        return None
+    if parsed.scheme.lower() in ("http", "https") and not parsed.netloc:
+        return None
+    return value if parsed.netloc or parsed.path else None
+
+
+def source_href(source):
+    if source.get("url"):
+        return safe_source_url(source["url"])
+    file = source.get("file", "")
+    if PureWindowsPath(file).is_absolute():
+        return PureWindowsPath(file).as_uri()
+    if Path(file).is_absolute():
+        return Path(file).as_uri()
+    return None
+
+
+def render_evidence(source):
+    if isinstance(source, str):
+        return f'<li>{text(source)}</li>'
+    href = source_href(source)
+    label = text(source["label"])
+    label = f'<a href="{text(href)}">{label}</a>' if href else label
+    if href and urlsplit(href).scheme.lower() == "file":
+        label += '<span class="source-working-copy">Local working copy</span>'
+    location = source.get("file", "")
+    if "line" in source:
+        location += f':{source["line"]}'
+    metadata = f'<code>{text(location)}</code>' if location else ''
+    if "revision" in source:
+        metadata += f'<span class="source-revision">@ {text(source["revision"])}</span>'
+    detail = f'<p>{text(source["detail"])}</p>' if "detail" in source else ''
+    return f'<li>{label}<span class="source-location">{metadata}</span>{detail}</li>'
 
 
 def status_label(status, mode):
@@ -294,7 +361,7 @@ def render_graph_svg(visual, mode, prefix, vertical=False):
     orientation = "mobile" if vertical else "desktop"
     pieces = [f'<svg class="graph graph-{orientation}" viewBox="0 0 {width} {height}" role="img" aria-labelledby="{prefix}-title {prefix}-description">',
               f'<title id="{prefix}-title">{text(TEMPLATES[visual["template"]])}</title>',
-              f'<desc id="{prefix}-description">{text(visual["caption"])} Each numbered arrow points from its source to its destination. Full details follow.</desc>', '<defs>']
+              f'<desc id="{prefix}-description">{text(visual["caption"])} Arrow labels explain each action or condition. Directed connection details follow.</desc>', '<defs>']
     strokes = {status: f"var(--{status})" for status in LABELS}
     strokes["issue"] = "var(--risk)"
     for status, color in strokes.items():
@@ -314,6 +381,9 @@ def render_graph_svg(visual, mode, prefix, vertical=False):
             if symbol:
                 motion_style = text(f'offset-path: path("{path}");')
                 pieces.append(f'<g class="message-packet" style="{motion_style}" aria-hidden="true"><rect class="packet-body" x="-12" y="-12" width="24" height="24" rx="5"/><use class="packet-symbol" href="#ui-{symbol}" x="-10" y="-10" width="20" height="20"/></g>')
+            elif flow_signal(edge):
+                motion_style = text(f'offset-path: path("{path}");')
+                pieces.append(f'<g class="flow-transfer" style="{motion_style}" aria-hidden="true"><circle class="flow-signal" r="6"/><circle class="flow-signal-core" r="2"/></g>')
             else:
                 pieces.append(f'<path class="connector-emphasis" d="{path}"/>')
         for step_index, step in enumerate(visual.get("sequence", [])):
@@ -326,7 +396,19 @@ def render_graph_svg(visual, mode, prefix, vertical=False):
         pieces.append('</g>')
     for index, route in enumerate(geometry["routes"], 1):
         x, y = route["label"]
-        pieces.append(f'<g aria-hidden="true"><rect class="edge-number-box" x="{x-17}" y="{y-12}" width="34" height="24" rx="4"/><text class="edge-number" x="{x}" y="{y+4}" text-anchor="middle">{index:02d}</text></g>')
+        edge = visual["edges"][index-1]
+        lines = route.get("labelLines", [edge.get("shortLabel", edge["label"])])
+        box_x, box_y, box_w, box_h = route.get("labelBox", (x-17, y-12, 34, 24))
+        pieces.append(f'<g class="edge-label" data-label-edge="{index}" aria-hidden="true">')
+        if "labelAnchor" in route:
+            anchor_x, anchor_y = route["labelAnchor"]
+            if not (box_x <= anchor_x <= box_x+box_w and box_y <= anchor_y <= box_y+box_h):
+                pieces.append(f'<path class="edge-label-leader" d="M {anchor_x:g} {anchor_y:g} L {x:g} {y:g}"/>')
+        pieces.append(f'<rect class="edge-number-box" x="{box_x}" y="{box_y}" width="{box_w}" height="{box_h}" rx="4"/><text class="edge-label-text" x="{x}" text-anchor="middle">')
+        for line_index, line in enumerate(lines):
+            line_y = y - (len(lines)-1)*9 + 5 + line_index*18
+            pieces.append(f'<tspan x="{x}" y="{line_y}">{text(line)}</tspan>')
+        pieces.append('</text></g>')
     for node in visual["nodes"]:
         x, y, w, h, lines = positions[node["id"]]
         kind = node.get("kind", "generic")
@@ -450,12 +532,12 @@ def render_graph(visual, mode, prefix):
             pieces.append(f'<p class="group-note"><strong>{text(group["label"])}:</strong> {text(group["detail"])}</p>')
     labels = {node["id"]: node["label"] for node in visual["nodes"]}
     if visual["edges"]:
-        pieces.append('<ol class="connections" aria-label="Directed connections">')
+        pieces.append(f'<details class="connection-details"><summary>Connection details ({len(visual["edges"])})</summary><ol class="connections" aria-label="Directed connections">')
         for index, edge in enumerate(visual["edges"], 1):
             direction = f'{text(labels[edge["from"]])} → {text(labels[edge["to"]])}'
             transport = f'<span class="transport-label">{text(edge["transport"])}</span>' if "transport" in edge else ""
             pieces.append(f'<li class="status-{edge["status"]}"><span class="connection-index">{index:02d}</span><div><span class="connection-heading"><span class="connection-direction">{direction}</span>{transport}<span class="connection-status">{text(LABELS[edge["status"]])}</span></span><span class="connection-label">{text(edge["label"])}</span></div></li>')
-        pieces.append('</ol>')
+        pieces.append('</ol></details>')
     issues = [(node["label"], node["issue"]) for node in visual["nodes"] if "issue" in node]
     issues += [(f'Connection {index:02d}: {labels[edge["from"]]} → {labels[edge["to"]]}', edge["issue"]) for index, edge in enumerate(visual["edges"], 1) if "issue" in edge]
     if issues:
@@ -493,13 +575,17 @@ def render_code(code, mode):
     pieces = [f'<div class="code-change"><div class="code-filebar">{ui_icon("file", 20)}{file}{symbol}<span class="code-kind">{heading}</span>{language}</div><div class="code-columns">']
     for side, lines in (("before", before), ("after", after)):
         title = "Before" if side == "before" else "Proposed" if mode == "plan" else "After"
-        pieces.append(f'<div class="code-side"><div class="code-side-title"><span>{ui_icon("minus" if side == "before" else "plus", 14)}{title}</span><span class="code-line-note">Excerpt lines</span></div><pre class="code-excerpt" aria-label="{title} code excerpt, with excerpt-relative line numbers"><code>')
+        source_line = code.get(side + "Line")
+        line_note = "Source lines" if source_line is not None else "Excerpt lines"
+        revision = f' · {text(code[side + "Revision"])}' if side + "Revision" in code else ''
+        pieces.append(f'<div class="code-side"><div class="code-side-title"><span>{ui_icon("minus" if side == "before" else "plus", 14)}{title}{revision}</span><span class="code-line-note">{line_note}</span></div><pre class="code-excerpt" aria-label="{title} code excerpt, with {line_note.lower()}"><code>')
         if not lines:
             pieces.append('<span class="code-empty">Not present</span>')
         for index, line in enumerate(lines):
             state = states[side][index]
             sign = "−" if state == "deleted" else "+" if state == "added" else " "
-            pieces.append(f'<span class="code-line {state}"><span class="code-lineno" aria-hidden="true">{index+1}</span><span class="code-sign" aria-hidden="true">{sign}</span><span class="code-text">{highlight_code(line)}</span></span>')
+            number = source_line + index if source_line is not None else index + 1
+            pieces.append(f'<span class="code-line {state}"><span class="code-lineno" aria-hidden="true">{number}</span><span class="code-sign" aria-hidden="true">{sign}</span><span class="code-text">{highlight_code(line)}</span></span>')
         pieces.append('</code></pre></div>')
     pieces.append(f'</div><p class="code-summary">{text(code["summary"])}</p></div>')
     return ''.join(pieces)
@@ -528,13 +614,21 @@ def render_visual(visual, mode, prefix, baseline=False):
     legend = f'<div class="problem-key">{ui_icon("alert", 17)}Problem in existing behavior — not a change status</div>' if any("issue" in item for item in visual.get("nodes", [])+visual.get("edges", [])) else ""
     classes = "visual visual-baseline" if baseline else "visual"
     symbols = {packet_symbol(edge) for edge in visual.get("edges", [])} - {None}
-    packet = bool(symbols)
+    flows = [edge for edge in visual.get("edges", []) if flow_signal(edge)]
+    packet = bool(symbols or flows)
     focus = f' aria-describedby="{prefix}-packet-note"' if packet else ""
     guidance = ""
     if packet:
         classes += " has-packets"
-        meaning = "Envelopes: messages. Packages: deployment artifacts." if len(symbols) == 2 else "Moving envelope: message delivery." if "message" in symbols else "Moving package: deployment artifact."
-        guidance = f'<div class="packet-guidance" id="{prefix}-packet-note">{ui_icon("message" if "message" in symbols else "package", 18)}<span>{meaning}<span class="packet-loop-hint"> Repeats automatically; not a measured rate.</span><span class="packet-static-hint"> System motion is reduced; select Play to animate.</span></span><a href="#motion-controls">Motion controls</a></div>'
+        meanings = []
+        if "message" in symbols:
+            meanings.append("Moving envelope: message delivery.")
+        if "package" in symbols:
+            meanings.append("Moving package: deployment artifact.")
+        if flows:
+            meanings.append("Moving dots: execution flow." if all(edge.get("transport") == "flow" for edge in flows) else "Moving dots: requests or data transfers.")
+        meaning = " ".join(meanings)
+        guidance = f'<div class="packet-guidance" id="{prefix}-packet-note">{ui_icon("message" if "message" in symbols else "package" if symbols else "topology", 18)}<span>{meaning}<span class="packet-loop-hint"> Repeats automatically; not execution order or timing.</span><span class="packet-static-hint"> System motion is reduced; select Play to animate.</span></span><a href="#motion-controls">Motion controls</a></div>'
     return f'<figure class="{classes}"{focus}><div class="visual-heading">{ui_icon(visual_icon)}{text(heading)}<span class="visual-heading-note">{note}</span></div>{legend}{guidance}<div class="visual-content">{content}</div><figcaption>{text(visual["caption"])}</figcaption></figure>'
 
 
@@ -556,16 +650,20 @@ def render(report):
     if report.get("risks"):
         sections.append(("Important risks", "risks"))
     indexes = {anchor: index for index, (_, anchor) in enumerate(sections, 1)}
-    navigation = ''.join(f'<a href="#{anchor}">{ui_icon(SECTION_ICONS[anchor])}{heading}</a>' for heading, anchor in sections)
-    shortcuts = ''.join(f'<a href="#{anchor}" aria-label="{heading}" title="{heading}" class="tool-link tool-{anchor}">{ui_icon(SECTION_ICONS[anchor], 21)}</a>' for heading, anchor in sections)
-    toolbar = f'<aside class="tool-rail"><nav aria-label="Section shortcuts"><a href="#report" class="tool-link" aria-label="Back to report title" title="Back to report title">{ui_icon("arrow-up", 21)}</a><span class="tool-divider" aria-hidden="true"></span>{shortcuts}</nav></aside>'
-    mode_name = "Proposed solution" if mode == "plan" else "Change review"
-    topbar = f'<div class="workspace-bar"><div class="brand-mark">{ui_icon("code", 24)}<span>Review<span class="brand-muted"> / report</span></span></div><span class="workspace-label">Read-only brief</span><span class="mode">{ui_icon("info", 15)}{mode_name}</span></div>'
+    navigation = '<a class="section-link" href="#report" aria-label="Back to summary">Summary</a>' + ''.join(f'<a class="section-link" href="#{anchor}" aria-label="{heading}">{heading}</a>' for heading, anchor in sections)
+    mode_name = "Proposed solution" if mode == "plan" else "Actual changes"
+    topbar = f'<div class="workspace-bar"><div class="brand-mark">{ui_icon("code", 24)}<span>Change<span class="brand-muted"> explanation</span></span></div><span class="mode">{mode_name}</span></div>'
     summary = f'<p class="summary">{text(report["summary"])}</p>' if "summary" in report else ""
+    if report.get("risks"):
+        links = ''.join(f'<li><a href="#risk-{index}">{text(risk["title"])}</a></li>' for index, risk in enumerate(report["risks"], 1))
+        summary += f'<div class="summary-risks"><strong>Important risks</strong><ul>{links}</ul></div>'
+    if len(report["changes"]) > 1:
+        links = ''.join(f'<li><a href="#change-{change["id"]}">{text(change["title"])}</a></li>' for change in report["changes"])
+        summary += f'<details class="change-index"><summary>{len(report["changes"])} changes</summary><ol>{links}</ol></details>'
     legend = ''.join(f'<span class="legend-item status-{status}"><span class="swatch" aria-hidden="true"></span>{text(LABELS[status])}</span>' for status in LABELS)
     code_count = sum("code" in change for change in report["changes"])
     code_meta = f'<span>{code_count} summarized code changes</span>' if code_count else ''
-    header = f'<header class="masthead"><div class="eyebrow">{mode_name} / {len(report["changes"])} focused updates</div><h1>{text(report["title"])}</h1>{summary}<div class="report-meta">{code_meta}<div class="legend" aria-label="Change status legend">{legend}</div></div><nav class="navigation" aria-label="Report sections">{navigation}</nav></header>'
+    header = f'<header class="masthead"><h1>{text(report["title"])}</h1>{summary}<div class="report-meta">{code_meta}<div class="legend" aria-label="Change status legend">{legend}</div></div></header><nav class="section-navigation" aria-label="Explanation sections">{navigation}</nav>'
     visuals = [report["context"].get("visual", {})] + [change.get("visual", {}) for change in report["changes"]]
     has_motion = any(visual.get("scenario") or visual.get("sequence") or any(item.get("animate") for key in ("nodes", "edges", "before", "after") for item in visual.get(key, [])) for visual in visuals)
     if has_motion:
@@ -577,6 +675,15 @@ def render(report):
     body += '</div><div class="context-notes">'
     if "scope" in context:
         body += f'<h3>Scope</h3><p>{text(context["scope"])}</p>'
+    if context.get("comparison"):
+        comparison = context["comparison"]
+        body += f'<h3>Inspected comparison</h3><p><code>{text(comparison["base"])}</code> → <code>{text(comparison["head"])}</code>'
+        if "inspectedAt" in comparison:
+            body += f'<span class="comparison-date">Inspected {text(comparison["inspectedAt"])}</span>'
+        body += '</p>'
+        for key, label in (("included", "Included"), ("excluded", "Excluded")):
+            if comparison.get(key):
+                body += f'<h3>{label}</h3><ul>' + ''.join(f'<li>{text(item)}</li>' for item in comparison[key]) + '</ul>'
     for key, label in (("constraints", "Constraints"), ("assumptions", "Assumptions / unknowns")):
         if context.get(key):
             body += f'<h3>{label}</h3><ul>' + ''.join(f'<li>{text(item)}</li>' for item in context[key]) + '</ul>'
@@ -595,7 +702,7 @@ def render(report):
             body += render_visual(change["visual"], mode, "visual-" + change["id"])
         if change.get("evidence"):
             label = "Basis for proposal" if mode == "plan" else "Evidence / verification"
-            body += f'<div class="evidence"><strong>{label}</strong><ul>' + ''.join(f'<li>{text(item)}</li>' for item in change["evidence"]) + '</ul></div>'
+            body += f'<div class="evidence"><strong>{label}</strong><ul>' + ''.join(render_evidence(item) for item in change["evidence"]) + '</ul></div>'
         body += '</article>'
     if not report["changes"]:
         body = '<p class="empty">No changes in the stated scope.</p>' if mode == "review" else '<p class="empty">No changes proposed.</p>'
@@ -617,17 +724,17 @@ def render(report):
     content += section("Expected impact" if mode == "plan" else "Impact", "impact", indexes["impact"], body)
     if report.get("risks"):
         body = ''
-        for risk in report["risks"]:
-            body += f'<article class="risk"><div class="item-meta"><span class="risk-severity">{text(risk["severity"])} risk</span>{reference(risk["change"], titles)}</div><h3>{text(risk["title"])}</h3>'
+        for risk_index, risk in enumerate(report["risks"], 1):
+            body += f'<article class="risk" id="risk-{risk_index}"><div class="item-meta"><span class="risk-severity">{text(risk["severity"])} risk</span>{reference(risk["change"], titles)}</div><h3>{text(risk["title"])}</h3>'
             for key, label in (("condition", "When"), ("consequence", "Consequence"), ("mitigation", "Mitigation")):
                 if key in risk:
                     body += f'<p><strong>{label}:</strong> {text(risk[key])}</p>'
             body += '</article>'
         content += section("Important risks", "risks", indexes["risks"], body)
     note = "Proposed design · implementation and outcomes are not verified." if mode == "plan" else "Actual changes · impact labels distinguish evidence from predictions."
-    footer = f'<footer class="footer"><span>{note}</span><span>Review report / v1</span></footer>'
+    footer = f'<footer class="footer"><span>{note}</span><span>Change explanation / v1</span></footer>'
     sprites = (ASSETS / "entities.svg").read_text(encoding="utf-8") + (ASSETS / "ui-icons.svg").read_text(encoding="utf-8") + brand_sprite(brands)
-    body = f'{sprites}<div class="shell">{topbar}{toolbar}<main class="report" id="report">{header}{content}{footer}{brand_credits(brands)}</main></div>'
+    body = f'{sprites}<div class="shell">{topbar}<main class="report" id="report">{header}{content}{footer}{brand_credits(brands)}</main></div>'
     page = (ASSETS / "page.html").read_text(encoding="utf-8")
     # Substitute only template tokens, never text embedded by a report.
     styles = (ASSETS / "report.css").read_text(encoding="utf-8") + "\n" + (ASSETS / "modern.css").read_text(encoding="utf-8")

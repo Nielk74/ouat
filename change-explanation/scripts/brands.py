@@ -159,5 +159,5 @@ def catalog_page(entities, ui, kinds):
     body += "".join(sections) + credits(BRANDS) + '</main>'
     styles = (ASSETS / "report.css").read_text(encoding="utf-8") + "\n" + (ASSETS / "modern.css").read_text(encoding="utf-8")
     page = (ASSETS / "page.html").read_text(encoding="utf-8")
-    values = {"TITLE": "Review report icon library", "STYLE": styles, "BODY": body}
+    values = {"TITLE": "Change explanation icon library", "STYLE": styles, "BODY": body}
     return re.sub(r"\{\{(TITLE|STYLE|BODY)\}\}", lambda match: values[match[1]], page)

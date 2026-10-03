@@ -2,6 +2,7 @@
 
 from collections import Counter, defaultdict, deque
 import heapq
+import math
 import textwrap
 
 
@@ -12,10 +13,19 @@ def packet_symbol(edge):
     return {"message": "message", "deploy": "package"}.get(edge.get("transport"))
 
 
+def flow_signal(edge):
+    """Control flow and synchronous transfers use dots, never payload icons."""
+    return bool(edge.get("animate") and edge.get("transport", "request") in ("flow", "request", "read", "write"))
+
+
 class RouteError(ValueError):
     def __init__(self, edge, message):
         self.edge = edge
         super().__init__(message)
+
+
+class LabelPlacementError(RouteError):
+    """A clear route exists, but its readable label needs additional space."""
 
 
 def layered_ranks(nodes, edges):
@@ -45,13 +55,13 @@ def layered_ranks(nodes, edges):
     return ranks
 
 
-def graph_layout(nodes, edges, groups=None, vertical=False):
+def graph_layout(nodes, edges, groups=None, vertical=False, extra_spacing=0):
     ranks = layered_ranks(nodes, edges)
     display_ranks = dict(ranks)
     ownership = {node["id"]: node.get("group") for node in nodes}
     connections = {(edge["from"], edge["to"]) for edge in edges}
     bidirectional = any(source != target and (target, source) in connections and ownership[source] and ownership[source] == ownership[target] for source, target in connections)
-    column_step = 432 if bidirectional else 368
+    column_step = (432 if bidirectional else 368) + extra_spacing
     if groups and not vertical:
         # An external sink of an ownership hub belongs below that hub, not in
         # the thread/child column. This gives persistence its own vertical lane.
@@ -78,7 +88,7 @@ def graph_layout(nodes, edges, groups=None, vertical=False):
                 bands.append((band, members))
     elif ungrouped:
         bands.append(("", ungrouped))
-    positions, offset_y = {}, 54
+    positions, offset_y = {}, 54 + extra_spacing/2
     for band, members in bands:
         if vertical:
             members.sort(key=lambda node: ranks[node["id"]])
@@ -88,15 +98,15 @@ def graph_layout(nodes, edges, groups=None, vertical=False):
             metadata = textwrap.wrap(node.get("meta", ""), width=18)
             height = max(114, 96 + max(0, len(lines)-1)*22 + len(metadata)*18)
             rank = 0 if vertical else display_ranks[node["id"]]
-            positions[node["id"]] = (92 + rank*column_step, offset_y + (52 if band else 0) + column_y[rank], 246, height, lines)
-            column_y[rank] += height + 80
+            positions[node["id"]] = (92 + (extra_spacing if vertical else 0) + rank*column_step, offset_y + (52 if band else 0) + column_y[rank], 246, height, lines)
+            column_y[rank] += height + 80 + extra_spacing
         if band and not vertical:
             tallest = max(column_y.values(), default=0)
             for node in members:
                 x, y, w, h, lines = positions[node["id"]]
                 positions[node["id"]] = (x, y+(tallest-column_y[display_ranks[node["id"]]])/2, w, h, lines)
         offset_y += max(column_y.values(), default=0) + (70 if band else 28)
-    width = 430 if vertical else 430 + max(display_ranks.values(), default=0)*column_step
+    width = 430 + extra_spacing*2 if vertical else 430 + max(display_ranks.values(), default=0)*column_step
     return positions, width, offset_y + 30
 
 
@@ -122,6 +132,107 @@ def segment_hits(a, b, rectangle):
     if a[0] == b[0]:
         return x < a[0] < x+w and max(a[1], b[1]) > y and min(a[1], b[1]) < y+h
     return y < a[1] < y+h and max(a[0], b[0]) > x and min(a[0], b[0]) < x+w
+
+
+def label_width(value):
+    """Conservative advances for the report's 16px system-font labels."""
+    return sum(4.5 if character in " ilI.,'`:;!|" else
+               14.5 if character in "mwMW@%" else
+               16 if ord(character) > 127 else
+               10.8 if character.isupper() else
+               9.5 if character.isdigit() else 8.7
+               for character in value)
+
+
+def label_variants(edge, index):
+    """Keep complete label words; try one line before a balanced two-line plate."""
+    value = " ".join(edge.get("shortLabel", edge["label"]).split())
+    variants = []
+    if label_width(value) <= 236:
+        variants.append([value])
+    words = value.split()
+    if len(words) > 1:
+        splits = [(" ".join(words[:split]), " ".join(words[split:]))
+                  for split in range(1, len(words))]
+        best = min(splits, key=lambda lines: max(map(label_width, lines)) +
+                   abs(label_width(lines[0])-label_width(lines[1]))*.1)
+        if max(map(label_width, best)) <= 236:
+            variants.append(list(best))
+    if not variants:
+        raise RouteError(index, "The connection label is too long for two readable lines. Add a concise shortLabel.")
+    return [(lines, max(44, math.ceil(max(map(label_width, lines)))+20), 18*len(lines)+12)
+            for lines in variants]
+
+
+def place_labels(visual, positions, groups, routes, width, height, moving_edges):
+    """Reserve actual text plates without hiding nearby arrows or moving tokens."""
+    occupied = [(x-5, y-5, w+10, h+10) for x, y, w, h, _ in positions.values()]
+    occupied += [header for _, _, header in groups]
+    occupied += [(route["points"][-1][0]-18, route["points"][-1][1]-18, 36, 36)
+                 for route in routes]
+    # Moving paths cannot run under their own labels; reserve those harder
+    # placements before static labels claim the limited shared gutters.
+    order = sorted(range(len(routes)), key=lambda index: index not in moving_edges)
+    for index in order:
+        edge, route = visual["edges"][index], routes[index]
+        packet = index in moving_edges
+        candidates = []
+        traveled = 0
+        for segment, (a, b) in enumerate(zip(route["points"], route["points"][1:])):
+            length = abs(b[0]-a[0])+abs(b[1]-a[1])
+            horizontal = a[1] == b[1]
+            for variant, (lines, box_width, box_height) in enumerate(label_variants(edge, index)):
+                for fraction in (.5, .4, .35, .375, .45, .55, .6, .65, .25, .75, .2, .8, .1, .9, .05, .95, .025, .975):
+                    anchor = (a[0]+(b[0]-a[0])*fraction, a[1]+(b[1]-a[1])*fraction)
+                    # Off-route plates carry a short leader back to this exact
+                    # segment. Longer distance is a last resort, not an invitation
+                    # to let labels float elsewhere in the graph.
+                    clearance = 18 if packet else 8
+                    offset = (box_height/2 if horizontal else box_width/2)+clearance
+                    offsets = [] if packet else [(0, 0)]
+                    if not packet:
+                        offsets += [(0, delta) for delta in (-8, 8, -12, 12)] if horizontal else [(delta, 0) for delta in (-8, 8, -12, 12)]
+                    distances = (offset, offset+24, offset+48, offset+56, offset+72)
+                    offsets += [(0, direction*distance) for distance in distances for direction in (-1, 1)] if horizontal else [(direction*distance, 0) for distance in distances for direction in (-1, 1)]
+                    # Exact boundaries avoid depending on a lucky fixed offset
+                    # when an ordinary label fits just above/below a node row.
+                    for ox, oy, ow, oh in occupied:
+                        if horizontal and anchor[0]-box_width/2 < ox+ow and anchor[0]+box_width/2 > ox:
+                            offsets += [(0, oy-6-box_height/2-anchor[1]), (0, oy+oh+6+box_height/2-anchor[1])]
+                        elif not horizontal and anchor[1]-box_height/2 < oy+oh and anchor[1]+box_height/2 > oy:
+                            offsets += [(ox-6-box_width/2-anchor[0], 0), (ox+ow+6+box_width/2-anchor[0], 0)]
+                    for dx, dy in offsets:
+                        if abs(dx)+abs(dy) > (box_height/2 if horizontal else box_width/2)+90:
+                            continue
+                        x, y = anchor[0]+dx, anchor[1]+dy
+                        score = abs(dx)+abs(dy)+variant*8+(traveled+length*fraction)*.025
+                        candidates.append((score, x, y, box_width, box_height, lines, anchor, segment))
+            traveled += length
+        for _, x, y, box_width, box_height, lines, anchor, segment in sorted(candidates, key=lambda item: item[0]):
+            box = (x-box_width/2, y-box_height/2, box_width, box_height)
+            if box[0] < 6 or box[1] < 6 or box[0]+box_width > width-6 or box[1]+box_height > height-6:
+                continue
+            if any(overlaps(box, obstacle) for obstacle in occupied):
+                continue
+            blocked = False
+            for other_index, other in enumerate(routes):
+                margin = 14 if other_index in moving_edges else 4
+                protected = (box[0]-margin, box[1]-margin, box_width+margin*2, box_height+margin*2)
+                for part, (a, b) in enumerate(zip(other["points"], other["points"][1:])):
+                    if other_index == index and not packet and part == segment:
+                        continue
+                    if segment_hits(a, b, protected):
+                        blocked = True
+                        break
+                if blocked:
+                    break
+            if blocked:
+                continue
+            route.update(label=(x, y), labelBox=box, labelLines=lines, labelAnchor=anchor)
+            occupied.append((box[0]-5, box[1]-5, box_width+10, box_height+10))
+            break
+        else:
+            raise LabelPlacementError(index, "The connection label cannot fit without obscuring content. Shorten its shortLabel or split the graph.")
 
 
 def simplify(points):
@@ -265,12 +376,12 @@ def orthogonal_route(start, end, initial, final, xs, ys, obstacles, used):
     return None
 
 
-def route_graph(visual, vertical=False):
-    positions, width, height = graph_layout(visual["nodes"], visual["edges"], visual.get("groups"), vertical)
+def _route_graph(visual, vertical, extra_spacing):
+    positions, width, height = graph_layout(visual["nodes"], visual["edges"], visual.get("groups"), vertical, extra_spacing)
     groups = group_bounds(visual, positions)
     obstacles = [(x-18, y-18, w+36, h+36) for x, y, w, h, _ in positions.values()]
     sequence_edges = {step["edge"]-1 for step in visual.get("sequence", []) if "edge" in step}
-    moving_edges = sequence_edges | {index for index, edge in enumerate(visual["edges"]) if packet_symbol(edge)}
+    moving_edges = sequence_edges | {index for index, edge in enumerate(visual["edges"]) if packet_symbol(edge) or flow_signal(edge)}
     heading_clearance = 16 if moving_edges else 8
     obstacles += [(x-heading_clearance, y-heading_clearance, w+heading_clearance*2, h+heading_clearance*2) for _, _, (x, y, w, h) in groups]
     ports = port_requests(visual, positions, vertical)
@@ -293,43 +404,26 @@ def route_graph(visual, vertical=False):
         path = simplify([source_tip] + path + [target_tip])
         routes.append({"points": path, "source": edge["from"], "target": edge["to"]})
         used.extend(zip(path, path[1:]))
-    occupied = [(x-5, y-5, w+10, h+10) for x, y, w, h, _ in positions.values()]
-    occupied += [header for _, _, header in groups]
-    # Protect arrowheads and all other paths when placing a numbered connection.
-    occupied += [(route["points"][-1][0]-18, route["points"][-1][1]-18, 36, 36) for route in routes]
-    for index, route in enumerate(routes):
-        candidates = []
-        packet = index in moving_edges
-        for a, b in zip(route["points"], route["points"][1:]):
-            length = abs(b[0]-a[0])+abs(b[1]-a[1])
-            for fraction in (.5, .3, .7, .2, .8):
-                x, y = a[0]+(b[0]-a[0])*fraction, a[1]+(b[1]-a[1])*fraction
-                if packet:
-                    offsets = ((0, -32), (0, 32)) if a[1] == b[1] else ((-36, 0), (36, 0))
-                    candidates.extend((length, x+dx, y+dy) for dx, dy in offsets)
-                else:
-                    candidates.append((length, x, y))
-        for _, x, y in sorted(candidates, key=lambda item: -item[0]):
-            box = (x-17, y-12, 34, 24)
-            if x < 18 or x > width-18 or y < 13 or y > height-13 or any(overlaps(box, obstacle) for obstacle in occupied):
-                continue
-            blocked = False
-            for other_index, other in enumerate(routes):
-                other_packet = other_index in moving_edges
-                if other_index == index and not packet:
-                    continue
-                margin = 14 if other_packet else 4
-                if any(segment_hits(a, b, (x-17-margin, y-12-margin, 34+margin*2, 24+margin*2)) for a, b in zip(other["points"], other["points"][1:])):
-                    blocked = True
-                    break
-            if blocked:
-                continue
-            route["label"] = (x, y)
-            occupied.append((x-21, y-16, 42, 32))
-            break
-        else:
-            raise RouteError(index, "The connection number cannot be placed without obscuring a node, arrowhead, or another connection.")
+    place_labels(visual, positions, groups, routes, width, height, moving_edges)
+    # Layer construction reserves space for another row after the final node.
+    # Crop only unused trailing canvas after routing and label placement, while
+    # preserving clearance for arrowheads and animated packets on outer lanes.
+    bottoms = [y+h for _, y, _, h, _ in positions.values()]
+    bottoms += [y+h for _, (_, y, _, h), _ in groups]
+    bottoms += [route["labelBox"][1]+route["labelBox"][3] for route in routes]
+    bottoms += [max(y for _, y in route["points"])+18 for route in routes]
+    height = min(height, math.ceil(max(bottoms, default=0)+24))
     return {"positions": positions, "width": width, "height": height, "groups": groups, "routes": routes}
+
+
+def route_graph(visual, vertical=False):
+    """Use compact geometry first; preserve older full labels with bounded spacing."""
+    for extra_spacing in (0, 80, 160):
+        try:
+            return _route_graph(visual, vertical, extra_spacing)
+        except LabelPlacementError:
+            if extra_spacing == 160:
+                raise
 
 
 def path_data(points):

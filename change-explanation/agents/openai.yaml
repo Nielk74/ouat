@@ -1,0 +1,6 @@
+interface:
+  display_name: "Change Explanation"
+  short_description: "Explain actual changes or one proposal in visual HTML"
+  default_prompt: "Use $change-explanation to explain these changes or one proposed solution."
+policy:
+  allow_implicit_invocation: false

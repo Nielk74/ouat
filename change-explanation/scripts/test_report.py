@@ -47,13 +47,13 @@ class PageInspector(HTMLParser):
             self.ids.append(attrs["id"])
         if tag == "a" and attrs.get("href", "").startswith("#"):
             self.links.append(attrs["href"][1:])
-            if "tool-link" in attrs.get("class", "").split():
+            if "section-link" in attrs.get("class", "").split():
                 self.shortcuts.append((attrs["href"][1:], attrs.get("aria-label", "")))
         if tag == "use" and attrs.get("href", "").startswith("#"):
             self.uses.append(attrs["href"][1:])
         if tag == "section":
             self.sections.append(attrs.get("id"))
-        if tag in ("details", "dialog") or "hidden" in attrs:
+        if tag == "dialog" or "hidden" in attrs:
             self.hidden_content.append(tag)
         if tag == "script":
             self.scripts += 1
@@ -74,6 +74,34 @@ class ReportTests(unittest.TestCase):
 
     def errors(self, data):
         return [item for item in report.validate(data) if item["level"] == "error"]
+
+    def test_summary_surfaces_material_risks_before_context(self):
+        html = report.render(self.example)
+        self.assertLess(html.index('class="summary-risks"'), html.index('id="context"'))
+        for index, risk in enumerate(self.example["risks"], 1):
+            self.assertIn(f'href="#risk-{index}"', html)
+            self.assertIn(f'id="risk-{index}"', html)
+
+    def test_desktop_navigation_is_labeled_without_fake_selection(self):
+        html = report.render(self.example)
+        self.assertIn('class="section-navigation"', html)
+        self.assertNotIn('class="tool-rail"', html)
+        self.assertNotIn('.navigation a[href="#changes"]', html)
+
+    def test_concise_graph_labels_are_visible_without_opening_details(self):
+        visual = self.example["changes"][1]["visual"]
+        visual["edges"][2]["shortLabel"] = "No"
+        visual["edges"][3]["shortLabel"] = "Yes"
+        html = report.render_graph(visual, "plan", "test-labels")
+        self.assertIn('class="edge-label-text"', html)
+        self.assertIn('>No</tspan>', html)
+        self.assertIn('>Yes</tspan>', html)
+        self.assertIn('<details class="connection-details">', html)
+
+    def test_missing_summary_is_a_legacy_warning(self):
+        del self.example["summary"]
+        diagnostics = report.validate(self.example)
+        self.assertTrue(any(item["path"] == "$.summary" and item["level"] == "warning" for item in diagnostics))
 
     def test_all_templates_and_both_modes(self):
         visuals = [self.example["context"]["visual"]] + [change["visual"] for change in self.example["changes"] + self.system["changes"]]
@@ -233,11 +261,11 @@ class ReportTests(unittest.TestCase):
         self.assertIn("$.context.visual.nodes[1].issue", paths)
         self.assertIn("$.context.visual.edges[1].issue", paths)
 
-    def test_missing_baseline_diagram_warns_without_blocking(self):
+    def test_simple_explanation_does_not_require_a_baseline_diagram(self):
         del self.system["context"]["visual"]
         diagnostics = report.validate(self.system)
         self.assertFalse(self.errors(self.system))
-        self.assertTrue(any(item["path"] == "$.context.visual" and item["level"] == "warning" for item in diagnostics))
+        self.assertFalse(any(item["path"] == "$.context.visual" for item in diagnostics))
 
     def test_crowded_routing_reports_an_actionable_json_path(self):
         self.system["context"]["visual"] = {
@@ -366,7 +394,7 @@ class ReportTests(unittest.TestCase):
                     artwork = next(child for child in packets[0] if child.tag.endswith("use"))
                     self.assertEqual(artwork.attrib["href"], expected)
                 html = report.render_visual(visual, "review", "transfer")
-                self.assertEqual('href="#motion-controls"' in html, bool(expected))
+                self.assertEqual('href="#motion-controls"' in html, bool(expected) or transport in ("request", "read", "write"))
 
     def test_deployment_packet_numbers_leave_the_transfer_corridor_clear(self):
         visual = copy.deepcopy(self.system["changes"][3]["visual"])
@@ -410,7 +438,7 @@ class ReportTests(unittest.TestCase):
         self.assertIn("checked", radios[0])
         self.assertNotIn("checked", radios[1])
         self.assertEqual(inspector.scripts, 0)
-        self.assertIn('Repeats automatically; not a measured rate.', html)
+        self.assertIn('Repeats automatically; not execution order or timing.', html)
         self.assertNotIn('Hover or focus', html)
         self.assertFalse(self.errors(self.system))
         visual["edges"][1]["animate"] = False
@@ -673,7 +701,8 @@ class ReportTests(unittest.TestCase):
     def test_nonmessage_animation_does_not_imply_a_payload(self):
         visual = self.example["changes"][1]["visual"]
         html = report.render_graph_svg(visual, "plan", "state-transition")
-        self.assertIn('class="connector-emphasis"', html)
+        self.assertIn('class="flow-transfer"', html)
+        self.assertNotIn('class="connector-emphasis"', html)
         self.assertNotIn("message-packet", html)
 
     def test_packet_animation_keeps_existing_validation_rules(self):
@@ -721,7 +750,7 @@ class ReportTests(unittest.TestCase):
         self.assertTrue(any(item["path"] == "$.version" for item in self.errors(self.example)))
 
     def test_cli_error_correction_and_output_preservation(self):
-        with tempfile.TemporaryDirectory(prefix="review-report-test-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="change-explanation-test-") as temporary:
             folder = Path(temporary)
             source, output = folder / "report.json", folder / "report.html"
             source.write_text('{"version": 1,\n}', encoding="utf-8")
@@ -746,7 +775,7 @@ class ReportTests(unittest.TestCase):
             self.assertIn("Changed title", output.read_text(encoding="utf-8"))
 
     def test_duplicate_keys_and_nonfinite_values(self):
-        with tempfile.TemporaryDirectory(prefix="review-report-json-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="change-explanation-json-") as temporary:
             source = Path(temporary) / "bad.json"
             for contents, expected in [('{"mode":"review","mode":"plan"}', "Duplicate"), ('{"version":NaN}', "Non-finite")]:
                 source.write_text(contents, encoding="utf-8")

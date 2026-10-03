@@ -1,85 +1,66 @@
 # ouat
 
-Visual reports for code reviews and technical plans.
+Desktop HTML explanations of actual changes and proposed solutions.
 
-A diff shows which lines changed. It takes more work to explain how those changes affect the system. ouat puts that explanation in one HTML file: the starting point, focused before/after code, diagrams of the affected components, and the consequences.
+A short summary states the main change and consequence. Focused code excerpts, directly labeled diagrams, and source references explain the details. Important risks are linked from the opening summary.
 
-![A proposed change with a code excerpt and a message-flow diagram](docs/preview.png)
+![A proposed change with directly labeled arrows](docs/preview.png)
 
-The project includes an agent skill (`review-report`) and a Python renderer. The agent inspects the source or develops a proposal, writes structured JSON, then uses the renderer to produce the report. You can also write the JSON yourself. The renderer checks its structure and references; the author is responsible for the explanation and evidence.
-
-Reports open locally in a browser. CSS, diagrams, and selected icons are embedded, so there is no server to run or external asset to load.
-
-## Try it
-
-Use Python 3.12. The renderer and tests use only the standard library.
-
-```sh
-python review-report/scripts/report.py validate review-report/assets/example-system.json
-python review-report/scripts/report.py render review-report/assets/example-system.json --output reports/my-report.html
-```
-
-Open `reports/my-report.html` in your browser. To replace a report you've already generated, add `--force`.
-
-Two examples are included, with rendered HTML ready to open after cloning:
-
-- [Scheduled exports](reports/example-system.html): move work out of an API request into a queue and independent workers. [Source JSON](review-report/assets/example-system.json).
-- [Bounded retries](reports/example-plan.html): define retry eligibility, limits, and state transitions. [Source JSON](review-report/assets/example-plan.json).
-
-Both are illustrative proposals. Their code and infrastructure are hypothetical.
-
-## Diagram animations
-
-One sticky **System / Play / Pause** control manages all report animations. System is the default and respects the browser's [`prefers-reduced-motion`](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/@media/prefers-reduced-motion) preference. If motion is reduced, the report explains why its diagrams are static; **Play** explicitly enables motion for this report only. **Pause** freezes playback. Printing is always static, even after selecting Play. No scripts, hover, or focus are required for playback.
-
-On Windows, **Settings → Accessibility → Visual effects → Animation effects** can make the browser request reduced motion. This caused packages to appear stationary in the embedded viewer on our test machine; the original browser check forced motion on and missed the default behavior. The consistent report-level solution is the visible Play override, not changing Windows or assuming an embedded-browser bug. Other viewers must support CSS motion paths and `:has()`; validate the actual viewer if it behaves differently.
-
-Envelopes represent messages; packages represent deployment artifacts. Problem animations must show a consequence, not just activity. The scheduled-export example now shows **the API process stopping mid-export → unfinished work interrupted → this attempt stores no completed result and cannot return success**. The held outcome is also visible with reduced motion and in print. Previous database results are not depicted as deleted, and a later retry is not ruled out.
-
-Four reusable consequence patterns cover interrupted work, message loss, a growing backlog at a bottleneck, and exhausted capacity. Authors select a pattern and supply component references plus condition, cause, and consequence; the renderer supplies the graphics and playback. Choose only a mechanism supported by evidence or explicitly hypothetical context—an awaited call alone does not prove saturation. Ordered sequences remain available for explaining causal order, but a successful completion sequence does not explain a failed attempt. Playback timing and depicted counts are illustrative, not measurements. See [consequence scenarios](review-report/references/format.md#consequence-scenarios).
+The project includes the explicitly invoked `change-explanation` agent skill and a Python renderer. Reports contain their CSS, diagrams, and selected icons, so they open locally without a server or external assets.
 
 ## Use the skill
 
-Copy the `review-report/` folder into your agent's skills directory. Keep the scripts, assets, references, and `SKILL.md` together.
-
-Example requests:
+Copy the complete `change-explanation/` folder into your agent's skills directory. Invoke it explicitly:
 
 ```text
-Use $review-report to explain the changes between main and this branch.
-Use $review-report to propose moving scheduled exports into a worker.
+Use $change-explanation to explain the changes between main and this branch.
+Use $change-explanation to propose moving scheduled exports into a worker.
 ```
 
-The skill has two modes:
+Ordinary explanation requests do not activate the skill. It explains changes; a defect audit is a separate request. `review` mode explains actual changes against an inspected baseline; `plan` mode explains one proposed solution with assumptions and expected effects.
 
-- **Review** explains actual changes against a stated baseline and separates observed effects from predictions.
-- **Plan** explains one proposed solution, with assumptions and expected effects clearly labeled.
+The agent records the comparison and scope, writes JSON, validates it, renders HTML, and delivers both files with a short chat conclusion. Source links include visible file lines and revisions. Working tree comparisons identify staged, unstaged, and untracked inclusion.
 
-Reports follow context, changes, manual actions when needed, impact, and important risks. Visuals cover before/after comparisons, flows, dependencies, state transitions, and communication between components. Diagrams are laid out by the renderer; JSON contains relationships, not coordinates.
+## Try the examples
 
-For your own report data, see the [format reference](review-report/references/format.md) and [JSON schema](review-report/assets/report.schema.json).
+Use Python 3.12. The renderer and tests require only the standard library.
+
+```sh
+python change-explanation/scripts/report.py validate change-explanation/assets/example-system.json
+python change-explanation/scripts/report.py render change-explanation/assets/example-system.json --output reports/my-explanation.html
+```
+
+Open the generated HTML in a browser. Add `--force` to replace your own generated output.
+
+- [Actual documentation change](reports/example-review.html): a brief explanation of a pinned historical README change, with a source permalink and no diagram. [JSON](change-explanation/assets/example-review.json).
+- [Bounded retries](reports/example-plan.html): a proposal with directly labeled decisions and retry branches. [JSON](change-explanation/assets/example-plan.json).
+- [Scheduled exports](reports/example-system.html): a proposal moving export execution into independent consumers. [JSON](change-explanation/assets/example-system.json).
+
+The two proposals are hypothetical. The actual-change example is scoped to documentation; it does not verify runtime behavior.
+
+## Read the reports
+
+A labeled sticky section bar navigates the explanation. Essential conclusions, uncertainty, and risk conditions remain visible. Supporting connection descriptions expand through native Connection details and are included in print.
+
+Diagrams put actions and branch conditions beside the arrows. Envelopes represent messages; packages represent deployment artifacts. Motion illustrates direction or a stated scenario, not measured timing, throughput, or guarantees. Failure scenarios show condition, mechanism, and consequence and retain a static outcome under reduced motion and in print.
+
+System / Play / Pause manages report motion. System follows the browser's reduced-motion preference; Play explicitly enables motion for this report; Pause freezes playback. These controls do not occupy sticky navigation. No JavaScript is required for the reports. Readers can use a current Chromium browser for the checked CSS motion behavior.
+
+See the [format reference](change-explanation/references/format.md), [rendering guidance](change-explanation/references/rendering.md), and [JSON schema](change-explanation/assets/report.schema.json). Legacy string evidence and reports without summaries remain accepted; new authoring requires a concise summary and structured references where available.
 
 ## Icons
 
-Generate a local gallery of the component icons and bundled product logos:
-
 ```sh
-python review-report/scripts/report.py icons --output reports/icon-library.html
+python change-explanation/scripts/report.py icons --output reports/icon-library.html
 ```
 
-Product logos retain their source metadata and notices in [assets/brands](review-report/assets/brands/NOTICE.txt). Individual licenses and trademark terms apply; selected marks are credited in generated reports.
+Selected bundled logos retain their artwork and source credits. Individual licenses and trademark terms apply; see [brand notices](change-explanation/assets/brands/NOTICE.txt).
 
-## Tests
-
-```sh
-python -m unittest discover -s review-report/scripts -p "test_*.py" -v
-```
-
-The suite covers validation, escaping, diagram routing, embedded assets, and CLI output handling. CI runs it on Linux and Windows.
-
-An optional browser check uses Node 22+ and a local Chrome or Edge executable, without npm packages:
+## Verification
 
 ```sh
-node review-report/scripts/preview_check.mjs reports/my-report.html reports/previews "/path/to/chrome"
+python -m unittest discover -s change-explanation/scripts -p "test_*.py" -v
+node change-explanation/scripts/preview_check.mjs reports/my-explanation.html reports/previews "/path/to/chrome"
 ```
 
-It checks layout at desktop, tablet, and phone widths, diagram routing, contrast, actual marker movement, ordered waiting behavior, and consequence-scenario state changes. It records the native motion preference before emulation, then checks System, Play and Pause with reduced motion, plus static printing. It also saves screenshots. Structural and playback checks do not establish whether a claimed failure mechanism is supported by the source.
+The suite covers validation, source links and numbering, escaping, graph routing, label placement, embedded assets, and CLI output handling. CI runs on Linux and Windows. The optional browser helper uses Node 22+ and local Chrome or Edge without npm packages. It checks layout, labels, navigation, contrast, playback, reduced motion, and static printing and saves screenshots. Structural and visual checks do not establish factual accuracy.

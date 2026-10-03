@@ -72,7 +72,7 @@ try {
   const url = pathToFileURL(resolve(source)).href;
   const results = [];
   mkdirSync(resolve(destination), { recursive: true });
-  for (const width of [1440, 768, 375]) {
+  for (const width of [1440, 1280, 768, 375]) {
     await cdp('Emulation.setDeviceMetricsOverride', { width, height: 1100, deviceScaleFactor: 1, mobile: width < 600 });
     await cdp('Emulation.setEmulatedMedia', { features: [] });
     await cdp('Page.navigate', { url });
@@ -128,6 +128,53 @@ try {
       return { checked, failures };
     })()`);
     if (diagramText.failures.length) throw new Error('Diagram text exceeds its node: ' + JSON.stringify(diagramText.failures));
+    const arrowLabels = await evaluate(`(() => {
+      const failures = []; let checked = 0;
+      for (const graph of document.querySelectorAll('.graph')) {
+        if (!graph.getClientRects().length) continue;
+        for (const group of graph.querySelectorAll('.edge-label')) {
+          checked++;
+          const plate = group.querySelector('.edge-number-box').getBBox();
+          const label = group.querySelector('.edge-label-text');
+          const box = label.getBBox();
+          const edge = graph.querySelector('[data-edge="' + group.dataset.labelEdge + '"]');
+          const status = [...edge.classList].find(name => name.startsWith('status-')).slice('status-'.length);
+          const marker = edge.classList.contains('has-issue') ? 'issue' : status;
+          const expected = getComputedStyle(graph.querySelector('marker[id$="-' + marker + '-arrow"] path')).fill;
+          const neutral = getComputedStyle(graph.querySelector('.node-label')).fill;
+          if (getComputedStyle(label).fill !== neutral) failures.push('Branch label uses an extra color meaning: ' + label.textContent);
+          if (getComputedStyle(edge.querySelector('.connector')).stroke !== expected || !edge.querySelector('.connector').getAttribute('marker-end').includes('-' + marker + '-arrow)')) failures.push('Arrow color does not match its change status or issue highlight.');
+          if (!label.textContent.trim() || /^\\d+$/.test(label.textContent.trim())) failures.push('Arrow has no readable meaning.');
+          if (box.x < plate.x + 3 || box.x + box.width > plate.x + plate.width - 3 || box.y < plate.y + 2 || box.y + box.height > plate.y + plate.height - 2) failures.push('Arrow label exceeds its plate: ' + label.textContent);
+          const view = graph.viewBox.baseVal;
+          if (plate.x < 0 || plate.y < 0 || plate.x+plate.width > view.width || plate.y+plate.height > view.height) failures.push('Arrow label is outside the canvas.');
+        }
+      }
+      return {checked, failures};
+    })()`);
+    if (arrowLabels.failures.length) throw new Error('Unreadable arrow labels: ' + JSON.stringify(arrowLabels.failures));
+    const navigationCheck = await evaluate(`(() => {
+      const nav = document.querySelector('.section-navigation');
+      if (!nav) return {checked: 0, failures: []};
+      const failures = []; let checked = 0;
+      if (getComputedStyle(nav).position !== 'sticky') failures.push('Section navigation is not sticky.');
+      if (document.querySelector('.tool-rail')) failures.push('Duplicate icon navigation remains.');
+      for (const link of nav.querySelectorAll('a')) {
+        checked++;
+        if (!link.textContent.trim() || !document.querySelector(link.getAttribute('href'))) failures.push('Navigation is unlabeled or points to a missing section.');
+      }
+      if (innerWidth >= 1000) {
+        for (const section of document.querySelectorAll('main section')) {
+          section.scrollIntoView();
+          const heading = section.querySelector('h2');
+          if (heading.getBoundingClientRect().top < nav.getBoundingClientRect().bottom-1) failures.push('Anchored heading is hidden by navigation.');
+        }
+      }
+      window.scrollTo(0, 0);
+      return {checked, failures};
+    })()`);
+    if (navigationCheck.failures.length) throw new Error('Invalid section navigation: ' + JSON.stringify(navigationCheck.failures));
+    await evaluate(`document.querySelectorAll('.connection-details').forEach(detail => detail.open = true)`);
     const connectionBadges = await evaluate(`(() => {
       const failures = [];
       let checked = 0;
@@ -149,6 +196,7 @@ try {
       return { checked, failures };
     })()`);
     if (connectionBadges.failures.length) throw new Error('Invalid connection badges: ' + JSON.stringify(connectionBadges.failures));
+    await evaluate(`document.querySelectorAll('.connection-details').forEach(detail => detail.open = false)`);
     const brandArtwork = await evaluate(`(() => {
       const failures = [];
       let checked = 0, contrastChecked = 0, multicolor = 0, minimum = Infinity;
@@ -277,7 +325,7 @@ try {
     if (diagramRouting.failures.length) throw new Error('Unreadable diagram routing: ' + JSON.stringify(diagramRouting.failures));
     const permitted = new Set(['highlight-outline', 'connection-flow', 'packet-transfer', 'behavior-travel', 'behavior-waiting', 'scenario-before', 'scenario-after', 'scenario-progress', 'scenario-message', 'scenario-slow-progress', 'scenario-accumulate', 'scenario-accumulate-2', 'scenario-accumulate-3', 'scenario-accumulate-4']);
     for (let count = 2; count <= 5; count++) for (let step = 1; step <= count; step++) permitted.add('behavior-window-' + count + '-' + step);
-    if (layout.animations.some(animation => !permitted.has(animation.name) || !/pulse|node-emphasis|connector-emphasis|message-packet|behavior-|scenario-/.test(animation.className) || (animation.name.startsWith('scenario-') ? animation.duration !== 12000 || animation.iterations !== 'infinite' : animation.name.startsWith('behavior-') ? animation.duration > 20000 || animation.iterations !== 'infinite' : animation.name === 'packet-transfer' ? animation.duration > 4000 || animation.iterations !== 'infinite' : animation.duration * animation.iterations > 5000))) {
+    if (layout.animations.some(animation => !permitted.has(animation.name) || !/pulse|node-emphasis|connector-emphasis|message-packet|flow-transfer|behavior-|scenario-/.test(animation.className) || (animation.name.startsWith('scenario-') ? animation.duration !== 12000 || animation.iterations !== 'infinite' : animation.name.startsWith('behavior-') ? animation.duration > 20000 || animation.iterations !== 'infinite' : animation.name === 'packet-transfer' ? animation.duration > 4000 || animation.iterations !== 'infinite' : animation.duration * animation.iterations > 5000))) {
       throw new Error('Unexpected animation or unbounded decorative emphasis.');
     }
     const packetMotion = await evaluate(`(async () => {
@@ -285,12 +333,12 @@ try {
       let checked = 0;
       const transports = [];
       const frame = () => new Promise(resolveFrame => requestAnimationFrame(resolveFrame));
-      // Read the introduction first: packages must still move without hover/focus.
+      // Read the introduction first: routed markers must still move without hover/focus.
       await new Promise(resolveDelay => setTimeout(resolveDelay, 5200));
-      const visiblePackets = [...document.querySelectorAll('.message-packet')].filter(node => node.closest('.graph').getClientRects().length);
+      const visiblePackets = [...document.querySelectorAll('.message-packet, .flow-transfer')].filter(node => node.closest('.graph').getClientRects().length);
       for (const packet of visiblePackets) {
         const graph = packet.closest('.graph'), edge = packet.closest('.edge');
-        transports.push(edge.classList.contains('transport-deploy') ? 'deploy' : 'message');
+        transports.push([...edge.classList].find(name => name.startsWith('transport-')).slice('transport-'.length));
         const path = edge.querySelector('.connector');
         const figure = packet.closest('figure');
         const control = document.getElementById('motion-pause');
@@ -332,7 +380,8 @@ try {
           if (Math.abs(matrix.b) > .001 || Math.abs(matrix.c) > .001 || Math.abs(matrix.a-1) > .001 || Math.abs(matrix.d-1) > .001) failures.push('Package rotates or scales during transfer.');
           for (const obstacle of graph.querySelectorAll('.node-box, .group-heading-bg, .edge-number-box')) {
             const box = obstacle.getBBox();
-            if (matrix.e+12 > box.x && matrix.e-12 < box.x+box.width && matrix.f+12 > box.y && matrix.f-12 < box.y+box.height) failures.push('Package overlaps a node, heading, or number plate.');
+            const radius = packet.classList.contains('flow-transfer') ? 7 : 12;
+            if (matrix.e+radius > box.x && matrix.e-radius < box.x+box.width && matrix.f+radius > box.y && matrix.f-radius < box.y+box.height) failures.push('Moving marker overlaps a node, heading, or label plate.');
           }
         }
         animation.currentTime = delay + duration * 6.5;
@@ -494,7 +543,7 @@ try {
     // covers editor tokens on both diff backgrounds as well as status labels.
     const contrast = await evaluate(`(() => {
       const selectors = ['h1', '.summary', '.context-block p', '.context-block .label',
-        '.context-notes p', '.context-notes li', '.navigation a', '.navigation .index',
+        '.context-notes p', '.context-notes li', '.section-navigation a', '.summary-risks a', '.connection-details summary',
         '.mode', '.change-id', '.change-description', '.badge', '.code-file',
         '.code-symbol', '.code-kind', '.code-language', '.code-side-title',
         '.code-text', '.code-sign', '.code-lineno', '.code-line-note', '[class^="token-"]', '.code-summary',
@@ -537,7 +586,7 @@ try {
     await cdp('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     const reducedMotion = await evaluate('document.getAnimations().length');
     if (reducedMotion !== 0) throw new Error('Reduced motion still animates content.');
-    const staticPackets = await evaluate(`Array.from(document.querySelectorAll('.message-packet')).every(packet => getComputedStyle(packet).animationName === 'none' && getComputedStyle(packet).offsetDistance === '35%' && getComputedStyle(packet).opacity === '1')`);
+    const staticPackets = await evaluate(`Array.from(document.querySelectorAll('.message-packet, .flow-transfer')).every(packet => getComputedStyle(packet).animationName === 'none' && getComputedStyle(packet).offsetDistance === '35%' && getComputedStyle(packet).opacity === '1')`);
     if (!staticPackets) throw new Error('Reduced-motion packages are not static and visible.');
     const staticScenarioExpression = `(() => {
       const failures = [];
@@ -557,7 +606,7 @@ try {
       const control = document.getElementById('motion-play');
       if (!control) return { checked: 0, failures: [] };
       const failures = [], frame = () => new Promise(done => requestAnimationFrame(done));
-      const staticState = () => [...document.querySelectorAll('.message-packet, .behavior-phase, .behavior-travel, .scenario-normal, .scenario-failure, .scenario-progress-fill, .scenario-backlog-item, .scenario-capacity-slot')].map(node => {
+      const staticState = () => [...document.querySelectorAll('.message-packet, .flow-transfer, .behavior-phase, .behavior-travel, .scenario-normal, .scenario-failure, .scenario-progress-fill, .scenario-backlog-item, .scenario-capacity-slot')].map(node => {
         const style = getComputedStyle(node);
         return [style.opacity, style.transform, style.offsetDistance];
       });
@@ -589,7 +638,7 @@ try {
       await frame(); await frame();
       control.checked = true;
       await frame(); await frame();
-      const markers = [...document.querySelectorAll('.message-packet, .behavior-travel')].filter(node => node.closest('.graph').getClientRects().length);
+      const markers = [...document.querySelectorAll('.message-packet, .flow-transfer, .behavior-travel')].filter(node => node.closest('.graph').getClientRects().length);
       const moving = markers[0];
       if (moving) {
         const before = moving.getScreenCTM();
@@ -624,6 +673,8 @@ try {
     if (printMotion.animations || !printMotion.phasesVisible) throw new Error('Print animates or hides behavior indications after Play.');
     const printScenarios = await evaluate(staticScenarioExpression);
     if (printScenarios.failures.length) throw new Error('Invalid print consequence: ' + JSON.stringify(printScenarios.failures));
+    const printDetails = await evaluate(`({ checked: document.querySelectorAll('.connection-details').length, visible: [...document.querySelectorAll('.connection-details .connections')].every(node => node.getClientRects().length > 0 && getComputedStyle(node).visibility !== 'hidden') })`);
+    if (!printDetails.visible) throw new Error('Print hides supporting connection details.');
     await evaluate(`document.getElementById('motion-system') && (document.getElementById('motion-system').checked = true)`);
     await cdp('Emulation.setEmulatedMedia', { media: 'screen', features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     const screenshot = await cdp('Page.captureScreenshot', { format: 'png' });
@@ -684,7 +735,7 @@ try {
         writeFileSync(join(resolve(destination), reportName + '-' + change.id + '.png'), Buffer.from(changeImage.data, 'base64'));
       }
     }
-    results.push({ ...layout, nativeMotion, diagramText, connectionBadges, diagramRouting, brandArtwork, packetMotion, sequenceMotion, scenarioMotion, responsiveSequence, staticPackets, staticScenarios, contrast, reducedMotion, reducedPlayback, printMotion, printScenarios, screenshot: output });
+    results.push({ ...layout, nativeMotion, diagramText, arrowLabels, navigationCheck, connectionBadges, diagramRouting, brandArtwork, packetMotion, sequenceMotion, scenarioMotion, responsiveSequence, staticPackets, staticScenarios, contrast, reducedMotion, reducedPlayback, printMotion, printScenarios, printDetails, screenshot: output });
   }
   if (pageErrors.length) throw new Error(pageErrors.join('; '));
   console.log(JSON.stringify({ checks: results, pageErrors }, null, 2));

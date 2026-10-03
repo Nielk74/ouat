@@ -84,7 +84,6 @@ h3 { font-size: 20px; letter-spacing: -.01em; }
 .navigation { display: flex; flex-wrap: wrap; gap: 0 22px; margin-top: 18px; padding: 0; }
 .navigation a { display: flex; gap: 8px; align-items: center; min-height: 44px; padding: 12px 0; font-size: 13px; color: #d0d3d8; border-bottom: 2px solid transparent; }
 .navigation a:hover { color: var(--ink); border-color: var(--new); }
-.navigation a[href="#changes"] { color: var(--new); border-bottom-color: var(--new); }
 .navigation a[href="#risks"] > .ui-icon { color: var(--risk); }
 .section { padding: 28px 0; }
 .section-heading { align-items: center; gap: 10px; margin-bottom: 18px; }
@@ -162,7 +161,9 @@ h3 { font-size: 20px; letter-spacing: -.01em; }
 .graph .connector { stroke-width: 2.2; stroke-opacity: .95; }
 .graph .connector-halo { fill: none; stroke: var(--editor); stroke-width: 7; stroke-linejoin: round; stroke-linecap: round; }
 .graph .connector { stroke-linejoin: round; stroke-linecap: round; }
-.graph .message-packet { offset-position: 0px 0px; offset-anchor: 0px 0px; offset-rotate: 0deg; offset-distance: 35%; color: var(--tone); pointer-events: none; animation: packet-transfer 3s linear infinite; animation-delay: -1.2s; }
+.graph .message-packet, .graph .flow-transfer { offset-position: 0px 0px; offset-anchor: 0px 0px; offset-rotate: 0deg; offset-distance: 35%; color: var(--tone); pointer-events: none; animation: packet-transfer 3s linear infinite; animation-delay: -1.2s; }
+.graph .flow-signal { fill: var(--ink); stroke: var(--editor); stroke-width: 2; }
+.graph .flow-signal-core { fill: var(--editor); }
 .graph .packet-body { fill: var(--tone); stroke: var(--editor); stroke-width: 2; }
 .graph .packet-symbol { color: var(--editor); --packet-surface: var(--tone); }
 :root:has(#motion-pause:checked) *, :root:has(#motion-pause:checked) *::before, :root:has(#motion-pause:checked) *::after { animation-play-state: paused !important; }
@@ -366,6 +367,44 @@ h3 { font-size: 20px; letter-spacing: -.01em; }
 .risk p { font-size: 15px; color: #e3d3d3; }
 .risk-severity { font-size: 12px; }
 .footer { font-size: 12px; }
+
+/* Desktop reading: preserve the full canvas and keep navigation descriptive. */
+.shell { display: block; }
+.workspace-bar { justify-content: space-between; padding-bottom: 12px; }
+.masthead { padding: 24px 0 18px; border-bottom: 0; }
+.report-meta { margin-top: 16px; }
+.summary { max-width: 82ch; }
+.summary-risks { margin-top: 16px; font-size: 14px; }
+.summary-risks strong { color: var(--risk); }
+.summary-risks ul { display: flex; flex-wrap: wrap; gap: 6px 24px; margin: 6px 0 0; padding-left: 18px; }
+.summary-risks a { color: #f0b3ae; }
+.change-index { margin-top: 12px; font-size: 14px; }
+.change-index ol { margin-top: 8px; }
+summary { cursor: pointer; }
+summary:focus-visible, .section-navigation a:focus-visible { outline: 2px solid var(--new); outline-offset: 4px; }
+.section-navigation { position: sticky; top: 0; z-index: 6; display: flex; flex-wrap: wrap; gap: 2px 24px; padding: 4px 12px; margin: 0 -12px; background: var(--canvas); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.section-navigation a { display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; color: #d0d3d8; text-decoration: none; }
+.section-navigation a:hover { color: var(--new); text-decoration: underline; text-underline-offset: 5px; }
+.motion-controls { position: static; padding: 4px 10px; margin: 14px 0 0; background: var(--editor); }
+.section, .change, .risk, #report { scroll-margin-top: 108px; }
+.connection-details { margin-top: 12px; font-size: 14px; }
+.connection-details summary { color: var(--muted); padding: 8px 0; }
+.connection-details .connections { margin-top: 0; padding-top: 4px; }
+.graph .edge-label-text { fill: var(--ink); font: 16px var(--sans); }
+.graph .edge-label-leader { fill: none; stroke: #a1a7b0; stroke-width: 1; }
+.graph .edge-number-box { fill: var(--editor); stroke: #767d88; }
+.source-location { display: inline-flex; flex-wrap: wrap; gap: 8px; margin-left: 10px; color: var(--muted); }
+.source-working-copy { display: inline-block; margin-left: 8px; font-size: 12px; color: var(--muted); }
+.evidence li p { margin: 3px 0 0; color: #d0d3d8; }
+.evidence li { font-family: var(--sans); font-size: 14px; }
+.source-revision { font-family: var(--mono); }
+.comparison-date { display: block; color: var(--muted); font-size: 13px; }
+@media print {
+  .section-navigation, .change-index { display: none; }
+  .connection-details > *, .connection-details::details-content { display: block; content-visibility: visible; }
+  .connection-details summary { display: none; }
+  .summary-risks, .summary-risks strong, .summary-risks a, .evidence, .source-location { color: #333; }
+}
 .skip-link { background: var(--chrome); }
 @media (max-width: 900px) {
   .scenario-cards, .scenario-story { grid-template-columns: minmax(0, 1fr); }

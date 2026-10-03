@@ -14,7 +14,8 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Generated reports; retain only the two public demos
+# Generated reports; retain the public demos
 /reports/*
 !/reports/example-plan.html
 !/reports/example-system.html
+!/reports/example-review.html

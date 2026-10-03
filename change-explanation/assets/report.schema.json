@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:review-report:v1",
-  "title": "Technical review or proposed-solution report",
+  "$id": "urn:change-explanation:v1",
+  "title": "Change explanation or proposed-solution report",
   "type": "object",
   "additionalProperties": false,
   "required": ["version", "mode", "title", "context", "changes", "impact"],
@@ -16,6 +16,7 @@
       "properties": {
         "problem": {"$ref": "#/$defs/text"}, "baseline": {"$ref": "#/$defs/text"},
         "scope": {"$ref": "#/$defs/text"},
+        "comparison": {"$ref": "#/$defs/comparisonScope"},
         "constraints": {"$ref": "#/$defs/texts"}, "assumptions": {"$ref": "#/$defs/texts"},
         "visual": {"$ref": "#/$defs/visual"}
       }
@@ -28,6 +29,30 @@
   "$defs": {
     "text": {"type": "string", "minLength": 1, "pattern": "\\S"},
     "texts": {"type": "array", "items": {"$ref": "#/$defs/text"}},
+    "sourceLine": {"type": "integer", "minimum": 1},
+    "sourceUrl": {"type": "string", "minLength": 1, "pattern": "^(?:https?://|file://|codex://|vscode://)[^\\s]+$"},
+    "evidence": {
+      "anyOf": [
+        {"$ref": "#/$defs/text"},
+        {"$ref": "#/$defs/sourceEvidence"}
+      ]
+    },
+    "sourceEvidence": {
+      "type": "object", "additionalProperties": false, "required": ["label"],
+      "properties": {
+        "label": {"$ref": "#/$defs/text"}, "file": {"$ref": "#/$defs/text"},
+        "line": {"$ref": "#/$defs/sourceLine"}, "revision": {"$ref": "#/$defs/text"},
+        "url": {"$ref": "#/$defs/sourceUrl"}, "detail": {"$ref": "#/$defs/text"}
+      }
+    },
+    "comparisonScope": {
+      "type": "object", "additionalProperties": false, "required": ["base", "head"],
+      "properties": {
+        "base": {"$ref": "#/$defs/text"}, "head": {"$ref": "#/$defs/text"},
+        "inspectedAt": {"$ref": "#/$defs/text"},
+        "included": {"$ref": "#/$defs/texts"}, "excluded": {"$ref": "#/$defs/texts"}
+      }
+    },
     "id": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"},
     "status": {"type": "string", "enum": ["new", "changed", "removed", "unchanged"]},
     "kind": {"type": "string", "enum": ["generic", "client", "server", "service", "config", "cron", "ci-worker", "worker", "process", "thread", "queue", "message", "database", "storage", "repository", "function", "decision"]},
@@ -55,8 +80,9 @@
       "properties": {
         "from": {"$ref": "#/$defs/id"}, "to": {"$ref": "#/$defs/id"},
         "label": {"$ref": "#/$defs/text"}, "status": {"$ref": "#/$defs/status"},
+        "shortLabel": {"type": "string", "minLength": 1, "maxLength": 32, "pattern": "\\S"},
         "animate": {"type": "boolean"}, "issue": {"$ref": "#/$defs/text"},
-        "transport": {"type": "string", "enum": ["request", "message", "read", "write", "config", "trigger", "deploy", "spawn"]}
+        "transport": {"type": "string", "enum": ["flow", "request", "message", "read", "write", "config", "trigger", "deploy", "spawn"]}
       }
     },
     "group": {
@@ -90,7 +116,9 @@
         "summary": {"$ref": "#/$defs/text"},
         "before": {"type": "string"}, "after": {"type": "string"},
         "file": {"$ref": "#/$defs/text"}, "symbol": {"$ref": "#/$defs/text"},
-        "language": {"$ref": "#/$defs/text"}
+        "language": {"$ref": "#/$defs/text"},
+        "beforeLine": {"$ref": "#/$defs/sourceLine"}, "afterLine": {"$ref": "#/$defs/sourceLine"},
+        "beforeRevision": {"$ref": "#/$defs/text"}, "afterRevision": {"$ref": "#/$defs/text"}
       }
     },
     "row": {
@@ -139,7 +167,7 @@
         "id": {"$ref": "#/$defs/id"}, "title": {"$ref": "#/$defs/text"},
         "status": {"type": "string", "enum": ["new", "changed", "removed"]},
         "description": {"$ref": "#/$defs/text"}, "why": {"$ref": "#/$defs/text"},
-        "visual": {"$ref": "#/$defs/visual"}, "evidence": {"$ref": "#/$defs/texts"},
+        "visual": {"$ref": "#/$defs/visual"}, "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
         "code": {"$ref": "#/$defs/code"}
       }
     },
