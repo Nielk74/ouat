@@ -169,21 +169,21 @@ def traffic_example():
 
 def traffic_markup():
     panels = []
-    for side, title, caption in (("current", "One API", "One execution slot · up to 2 finished/s"),
-                                 ("scaled", "Bounded concurrent processing", "12 worker slots · up to 24 finished/s")):
-        counters = ''.join(f'<div><dt>{label}</dt><dd data-traffic-side="{side}" data-traffic-metric="{metric}">0</dd></div>'
-                           for metric, label in (("active", "Working"), ("waiting", "Waiting"), ("completed", "Finished"), ("lost", "Rejected")))
+    for side, title, caption in (("current", "One API", "One request at a time"),
+                                 ("scaled", "Bounded concurrent processing", "Requests handled in parallel")):
         panels.append(f'<section class="traffic-panel" aria-labelledby="traffic-{side}-title"><h4 id="traffic-{side}-title">{title}</h4>'
-                      f'<p class="traffic-capacity">{caption}</p><div id="traffic-{side}-diagram"></div><dl class="traffic-counters">{counters}</dl>'
+                      f'<p class="traffic-caption">{caption}</p><div id="traffic-{side}-diagram"></div>'
                       f'<p class="traffic-state" id="traffic-{side}-state">Ready for requests.</p></section>')
     return ('<article class="showcase-demo" id="traffic-model"><div class="demo-heading"><h3>Why does one API stall under many users?</h3>'
             '<button type="button" id="traffic-restart" class="demo-replay">Restart comparison</button></div>'
             '<p class="demo-description">Same incoming load. More processing capacity; bounded waiting.</p>'
-            '<div class="traffic-controls"><label for="traffic-demand">Mean demand</label><input type="range" id="traffic-demand" min="2" max="40" step="1" value="18">'
-            '<output id="traffic-demand-value" for="traffic-demand">18 requests/s</output></div>'
+            '<div class="traffic-controls"><label for="traffic-demand">Traffic</label><input type="range" id="traffic-demand" min="2" max="40" step="1" value="18" aria-valuetext="Busy traffic">'
+            '<output id="traffic-demand-value" for="traffic-demand">Busy</output></div>'
             '<div class="traffic-panels traffic-comparison">' + ''.join(panels) + '</div>'
-            '<p class="traffic-note">Requests arrive in identical bursts every four seconds. Dots are requests; crosses mark rejected work.</p>'
-            '<p class="traffic-note">Illustrative capacities: each job takes 0.5 s; the database sustains 24 operations/s. A queue buys time; workers add capacity.</p>'
+            '<p class="traffic-note">Dots are requests; crosses are rejections. Both systems receive the same burst. Playback is slowed down.</p>'
+            '<details class="traffic-assumptions"><summary>Model assumptions</summary><p>Illustrative load: twice the mean rate for two seconds, then two quiet seconds. '
+            'Each job takes 0.5 s. The original API runs one job at a time with six waiting callers; the solution has 12 worker slots and a queue for 36 jobs. '
+            'The database can sustain 24 completed operations/s. A queue buys time; workers add capacity. Playback runs at quarter speed.</p></details>'
             + recipe(traffic_example()) + '</article>')
 
 

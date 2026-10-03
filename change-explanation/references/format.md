@@ -98,7 +98,7 @@ Duplicate-effect requires an at→from acknowledgement edge with an `issue`; the
 
 Use existing flows for lock cycles, repeated invalid messages, mismatched configuration, and premature acknowledgements. Keep the causal order and concrete values visible. The explorer's Problems section contains copyable examples; it is separate from normal reports.
 
-The explorer also compares a single synchronous API with bounded concurrent processing under identical bursts. Its dots represent requests, not network packets. Finished counts completed business work; rejected work is disjoint from queued or active jobs. Capacities are illustrative, and the database remains a stated limit. Copy its recipe for an ordinary architecture explanation; the live simulation stays in the explorer.
+The explorer also compares a single synchronous API with bounded concurrent processing under identical bursts. Its dots represent requests, not network packets, and playback runs at quarter speed. Queued dots and short state labels explain the outcome; numerical assumptions sit behind a disclosure. Rejected work is disjoint from queued or active jobs. The database remains a stated limit. Copy its recipe for an ordinary architecture explanation; the live simulation stays in the explorer.
 
 ### Ordered behavior
 

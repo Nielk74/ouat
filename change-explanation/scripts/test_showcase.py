@@ -40,7 +40,8 @@ class ShowcaseTests(unittest.TestCase):
         for identifier in ("traffic-model", "traffic-demand", "traffic-current-diagram", "traffic-scaled-diagram"):
             self.assertIn(f'id="{identifier}"', html)
         self.assertIn("Requests", html)
-        self.assertIn("Rejected", html)
+        self.assertIn('class="traffic-assumptions"', html)
+        self.assertNotIn('class="traffic-assumptions" open', html)
         self.assertNotIn('id="traffic-model"', report.render(example))
 
     def showcase_module(self):

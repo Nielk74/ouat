@@ -70,6 +70,17 @@ try {
     if (response.exceptionDetails) throw new Error(response.exceptionDetails.exception?.description || response.exceptionDetails.text);
     return response.result.value;
   }
+  async function captureTrafficModel(width) {
+    const bounds = await evaluate(`(() => {
+      document.getElementById('motion-pause').click();
+      window.ChangeExplanationTraffic.setDemand(18);
+      window.ChangeExplanationTraffic.advance(1.9);
+      const node = document.getElementById('traffic-model');
+      return {y:node.getBoundingClientRect().top+scrollY,height:node.offsetHeight};
+    })()`);
+    const shot = await cdp('Page.captureScreenshot', {format:'png',captureBeyondViewport:true,clip:{x:0,y:bounds.y,width,height:bounds.height,scale:1}});
+    writeFileSync(join(resolve(destination),'showcase-traffic-model.png'),Buffer.from(shot.data,'base64'));
+  }
   await cdp('Page.enable');
   await cdp('Runtime.enable');
   const url = pathToFileURL(resolve(source)).href;
@@ -90,6 +101,7 @@ try {
     const traffic = width === 1440 ? await checkTraffic(evaluate) : null;
     if (scope === '--traffic-only') {
       if (!traffic) throw new Error('This page has no traffic model.');
+      await captureTrafficModel(width);
       results.push({width,syntax,traffic});
       continue;
     }
@@ -901,15 +913,7 @@ try {
         writeFileSync(join(resolve(destination), reportName + '-' + change.id + '.png'), Buffer.from(changeImage.data, 'base64'));
       }
       if (traffic) {
-        const bounds = await evaluate(`(() => {
-          document.getElementById('motion-pause').click();
-          window.ChangeExplanationTraffic.setDemand(18);
-          window.ChangeExplanationTraffic.advance(1.9);
-          const node = document.getElementById('traffic-model');
-          return {y:node.getBoundingClientRect().top+scrollY,height:node.offsetHeight};
-        })()`);
-        const shot = await cdp('Page.captureScreenshot', {format:'png',captureBeyondViewport:true,clip:{x:0,y:bounds.y,width,height:bounds.height,scale:1}});
-        writeFileSync(join(resolve(destination),'showcase-traffic-model.png'),Buffer.from(shot.data,'base64'));
+        await captureTrafficModel(width);
       }
     }
     let syntaxWithoutJS = null;

@@ -9,6 +9,7 @@
   const SERVICE_SECONDS = .5;
   const CYCLE_SECONDS = 4;
   const BURST_SECONDS = 2;
+  const PLAYBACK_RATE = .25;
   let demand = Math.max(2, Math.min(40, Number(demandControl?.value) || 18));
   let visible = !('IntersectionObserver' in window);
   let printing = false;
@@ -40,7 +41,7 @@
     <rect class="traffic-service-fill" x="282" y="231" width="0" height="5" rx="2"/>
     <g class="traffic-waiting"></g><g class="traffic-active"></g><g class="traffic-rejected"></g>
     <text class="traffic-queue-label" x="214" y="278"></text>
-    <text class="traffic-note" x="310" y="318">Pending connections fill; excess requests are rejected.</text>`;
+    <text class="traffic-note" x="310" y="318">Too much work arrives at once.</text>`;
   const scaled = `${marker('scaled')}
     ${users('scaled',40)}
     ${route('scaled','73,166 96,166')}
@@ -52,13 +53,13 @@
     ${route('scaled','240,236 256,236 256,166 272,166')}
     ${route('scaled','338,166 364,166')}${route('scaled','436,166 460,166')}${route('scaled','530,166 560,166')}
     ${node(40,166,66,'Frontend','client')}${node(120,166,48,'LB','generic','traffic-added')}
-    ${node(210,96,60,'API 1','server','traffic-changed')}${node(210,166,60,'API 2','server','traffic-added')}${node(210,236,60,'API 3','server','traffic-added')}
+    ${node(210,96,60,'API','server','traffic-changed')}${node(210,166,60,'API','server','traffic-added')}${node(210,236,60,'API','server','traffic-added')}
     ${node(305,166,66,'Queue','queue','traffic-added')}${node(400,166,72,'Workers','worker','traffic-added')}${node(495,166,70,'DB pool','database','traffic-added')}${node(590,166,60,'DB','database')}
-    <text class="traffic-note" x="210" y="291">3 API replicas</text>
-    <text class="traffic-note" x="400" y="218">12 concurrent</text>
+    <text class="traffic-note" x="210" y="291">API replicas</text>
+    <text class="traffic-note" x="400" y="218">Parallel work</text>
     <g class="traffic-waiting"></g><g class="traffic-active"></g><g class="traffic-rejected"></g>
     <text class="traffic-queue-label" x="305" y="278"></text>
-    <text class="traffic-note" x="310" y="318">Bounded durable queue · 24 requests/s total</text>`;
+    <text class="traffic-note" x="310" y="318">Waiting work stays in the queue.</text>`;
   const diagrams = {};
   for (const [side, markup] of [['current', current], ['scaled', scaled]]) {
     const placeholder = document.getElementById(`traffic-${side}-diagram`);
@@ -121,7 +122,7 @@
     const summary = side => ({received: side.received, completed: side.completed, lost: side.lost,
       waiting: side.waiting.length, active: side.active.length, capacity: side.capacity,
       slots: side.slots, maxWaiting: side.maxWaiting});
-    return {elapsed: engine.elapsed, demand,
+    return {elapsed: engine.elapsed, demand, playbackRate: PLAYBACK_RATE,
       schedule: {cycleSeconds: CYCLE_SECONDS, burstSeconds: BURST_SECONDS, burstRate: demand*CYCLE_SECONDS/BURST_SECONDS},
       current: summary(engine.current), scaled: summary(engine.scaled)};
   }
@@ -140,13 +141,8 @@
   }
   const dot = (x, y, extra = '') => `<circle class="traffic-request ${extra}" cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="4"/>`;
   function paint() {
-    const state = snapshot();
     for (const name of ['current', 'scaled']) {
       const side = engine[name], display = diagrams[name];
-      for (const metric of ['active','waiting','completed','lost']) {
-        const target = root.querySelector(`[data-traffic-side="${name}"][data-traffic-metric="${metric}"]`);
-        if (target) target.textContent = state[name][metric];
-      }
       const status = document.getElementById(`traffic-${name}-state`);
       if (status) status.textContent = !side.received ? 'Ready' : side.waiting.length === side.maxWaiting && side.lost
         ? 'Full: overflow rejected' : side.waiting.length ? name === 'scaled' ? 'Queue buffering burst' : 'Waiting callers'
@@ -168,8 +164,7 @@
       display.waiting.innerHTML = side.waiting.map((_, index) => name === 'current'
         ? dot(194+(index%3)*13,242+Math.floor(index/3)*13,'traffic-pending')
         : dot(277+(index%9)*7,231+Math.floor(index/9)*9,'traffic-pending')).join('');
-      display.label.textContent = name === 'current' ? `Waiting callers (${side.waiting.length}/${side.maxWaiting})`
-        : `${side.waiting.length}/${side.maxWaiting} queued`;
+      display.label.textContent = name === 'current' ? 'Waiting callers' : 'Queued work';
       display.rejected.innerHTML = side.rejected.map(request => {
         const progress = (engine.elapsed-request.rejected)/.8;
         const lane = (request.id%3-1)*70;
@@ -183,7 +178,9 @@
     root.dataset.trafficMode = representative ? 'static' : moving() ? 'playing' : 'paused';
     if (demandControl) demandControl.value = String(demand);
     const output = document.getElementById('traffic-demand-value');
-    if (output) output.textContent = `${demand} requests/s`;
+    const intensity = demand <= 8 ? 'Light' : demand <= 24 ? 'Busy' : 'Heavy';
+    if (output) output.textContent = intensity;
+    demandControl?.setAttribute('aria-valuetext', `${intensity} traffic`);
   }
   function reset() {
     engine = makeEngine();
@@ -249,7 +246,7 @@
   else paint();
   function frame(timestamp) {
     if (moving()) {
-      if (previousFrame !== null) advance((timestamp-previousFrame)/1000);
+      if (previousFrame !== null) advance((timestamp-previousFrame)/1000*PLAYBACK_RATE);
       previousFrame = timestamp;
     } else previousFrame = null;
     requestAnimationFrame(frame);

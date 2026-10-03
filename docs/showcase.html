@@ -731,13 +731,13 @@ summary:focus-visible, .section-navigation a:focus-visible { outline: 2px solid 
 .copy-status { font-size: 14px; color: var(--muted); }
 .recipe-json { max-height: 380px; overflow: auto; padding: 16px; margin: 8px 0 0; background: var(--editor); border: 1px solid var(--line); font: 13px/1.65 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
 #traffic-model .traffic-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 18px 0; font-size: 14px; }
-#traffic-model .traffic-controls output { min-width: 100px; color: var(--ink); font: 13px var(--mono); }
+#traffic-model .traffic-controls output { min-width: 50px; color: var(--ink); font-size: 14px; }
 #traffic-model .traffic-panel { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 6px; background: var(--editor); }
 #traffic-model .traffic-panel h4 { font-size: 16px; margin: 0; }
-#traffic-model .traffic-capacity, #traffic-model > .traffic-note { color: var(--muted); font-size: 13px; margin: 6px 0; }
-#traffic-model .traffic-counters { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin: 10px 0; }
-#traffic-model .traffic-counters dt { color: var(--muted); font-size: 12px; }
-#traffic-model .traffic-counters dd { color: var(--ink); font: 22px var(--mono); margin: 0; }
+#traffic-model .traffic-caption, #traffic-model > .traffic-note { color: var(--muted); font-size: 13px; margin: 6px 0; }
+#traffic-model .traffic-assumptions { margin-top: 14px; color: var(--muted); font-size: 13px; }
+#traffic-model .traffic-assumptions summary { cursor: pointer; padding: 6px 0; color: var(--ink); }
+#traffic-model .traffic-assumptions p { max-width: 95ch; margin: 6px 0; }
 .showcase-enhanced .showcase-demo:not(.in-view) *,
 .showcase-enhanced .showcase-demo:not(.in-view) *::before,
 .showcase-enhanced .showcase-demo:not(.in-view) *::after { animation-play-state: paused !important; }
@@ -809,7 +809,6 @@ summary:focus-visible, .section-navigation a:focus-visible { outline: 2px solid 
 #traffic-model .traffic-overloaded .traffic-queue-label { fill: var(--ink); }
 #traffic-model .traffic-queue-label { font-size: 12px; font-variant-numeric: tabular-nums; }
 #traffic-model input[type="range"] { accent-color: var(--unchanged); min-width: 180px; max-width: 100%; }
-#traffic-model [data-traffic-metric] { font-variant-numeric: tabular-nums; }
 #traffic-model #traffic-current-state, #traffic-model #traffic-scaled-state { min-height: 1.5em; color: var(--ink); font-size: 14px; }
 @media (max-width: 1000px) { #traffic-model .traffic-comparison { grid-template-columns: minmax(0, 1fr); } }
 @media print { #traffic-model { break-inside: avoid; } #traffic-model #traffic-restart, #traffic-model input[type="range"] { display: none; } }
@@ -1452,7 +1451,7 @@ summary:focus-visible, .section-navigation a:focus-visible { outline: 2px solid 
       &quot;label&quot;: &quot;Save&quot;
     }
   ]
-}</code></pre></details></article></section><section class="showcase-section" id="problems"><h2>Problems</h2><article class="showcase-demo" id="traffic-model"><div class="demo-heading"><h3>Why does one API stall under many users?</h3><button type="button" id="traffic-restart" class="demo-replay">Restart comparison</button></div><p class="demo-description">Same incoming load. More processing capacity; bounded waiting.</p><div class="traffic-controls"><label for="traffic-demand">Mean demand</label><input type="range" id="traffic-demand" min="2" max="40" step="1" value="18"><output id="traffic-demand-value" for="traffic-demand">18 requests/s</output></div><div class="traffic-panels traffic-comparison"><section class="traffic-panel" aria-labelledby="traffic-current-title"><h4 id="traffic-current-title">One API</h4><p class="traffic-capacity">One execution slot · up to 2 finished/s</p><div id="traffic-current-diagram"></div><dl class="traffic-counters"><div><dt>Working</dt><dd data-traffic-side="current" data-traffic-metric="active">0</dd></div><div><dt>Waiting</dt><dd data-traffic-side="current" data-traffic-metric="waiting">0</dd></div><div><dt>Finished</dt><dd data-traffic-side="current" data-traffic-metric="completed">0</dd></div><div><dt>Rejected</dt><dd data-traffic-side="current" data-traffic-metric="lost">0</dd></div></dl><p class="traffic-state" id="traffic-current-state">Ready for requests.</p></section><section class="traffic-panel" aria-labelledby="traffic-scaled-title"><h4 id="traffic-scaled-title">Bounded concurrent processing</h4><p class="traffic-capacity">12 worker slots · up to 24 finished/s</p><div id="traffic-scaled-diagram"></div><dl class="traffic-counters"><div><dt>Working</dt><dd data-traffic-side="scaled" data-traffic-metric="active">0</dd></div><div><dt>Waiting</dt><dd data-traffic-side="scaled" data-traffic-metric="waiting">0</dd></div><div><dt>Finished</dt><dd data-traffic-side="scaled" data-traffic-metric="completed">0</dd></div><div><dt>Rejected</dt><dd data-traffic-side="scaled" data-traffic-metric="lost">0</dd></div></dl><p class="traffic-state" id="traffic-scaled-state">Ready for requests.</p></section></div><p class="traffic-note">Requests arrive in identical bursts every four seconds. Dots are requests; crosses mark rejected work.</p><p class="traffic-note">Illustrative capacities: each job takes 0.5 s; the database sustains 24 operations/s. A queue buys time; workers add capacity.</p><details class="demo-recipe"><summary>JSON recipe</summary><div class="recipe-actions"><button type="button" data-copy-json>Copy JSON</button><span class="copy-status" role="status"></span></div><pre class="recipe-json"><code>{
+}</code></pre></details></article></section><section class="showcase-section" id="problems"><h2>Problems</h2><article class="showcase-demo" id="traffic-model"><div class="demo-heading"><h3>Why does one API stall under many users?</h3><button type="button" id="traffic-restart" class="demo-replay">Restart comparison</button></div><p class="demo-description">Same incoming load. More processing capacity; bounded waiting.</p><div class="traffic-controls"><label for="traffic-demand">Traffic</label><input type="range" id="traffic-demand" min="2" max="40" step="1" value="18" aria-valuetext="Busy traffic"><output id="traffic-demand-value" for="traffic-demand">Busy</output></div><div class="traffic-panels traffic-comparison"><section class="traffic-panel" aria-labelledby="traffic-current-title"><h4 id="traffic-current-title">One API</h4><p class="traffic-caption">One request at a time</p><div id="traffic-current-diagram"></div><p class="traffic-state" id="traffic-current-state">Ready for requests.</p></section><section class="traffic-panel" aria-labelledby="traffic-scaled-title"><h4 id="traffic-scaled-title">Bounded concurrent processing</h4><p class="traffic-caption">Requests handled in parallel</p><div id="traffic-scaled-diagram"></div><p class="traffic-state" id="traffic-scaled-state">Ready for requests.</p></section></div><p class="traffic-note">Dots are requests; crosses are rejections. Both systems receive the same burst. Playback is slowed down.</p><details class="traffic-assumptions"><summary>Model assumptions</summary><p>Illustrative load: twice the mean rate for two seconds, then two quiet seconds. Each job takes 0.5 s. The original API runs one job at a time with six waiting callers; the solution has 12 worker slots and a queue for 36 jobs. The database can sustain 24 completed operations/s. A queue buys time; workers add capacity. Playback runs at quarter speed.</p></details><details class="demo-recipe"><summary>JSON recipe</summary><div class="recipe-actions"><button type="button" data-copy-json>Copy JSON</button><span class="copy-status" role="status"></span></div><pre class="recipe-json"><code>{
   &quot;version&quot;: 1,
   &quot;mode&quot;: &quot;plan&quot;,
   &quot;title&quot;: &quot;Handle bursts with bounded concurrent processing&quot;,
@@ -2804,6 +2803,7 @@ var ChangeExplanationHLJS=(()=>{var kc=Object.create;var we=Object.definePropert
   const SERVICE_SECONDS = .5;
   const CYCLE_SECONDS = 4;
   const BURST_SECONDS = 2;
+  const PLAYBACK_RATE = .25;
   let demand = Math.max(2, Math.min(40, Number(demandControl?.value) || 18));
   let visible = !('IntersectionObserver' in window);
   let printing = false;
@@ -2835,7 +2835,7 @@ var ChangeExplanationHLJS=(()=>{var kc=Object.create;var we=Object.definePropert
     <rect class="traffic-service-fill" x="282" y="231" width="0" height="5" rx="2"/>
     <g class="traffic-waiting"></g><g class="traffic-active"></g><g class="traffic-rejected"></g>
     <text class="traffic-queue-label" x="214" y="278"></text>
-    <text class="traffic-note" x="310" y="318">Pending connections fill; excess requests are rejected.</text>`;
+    <text class="traffic-note" x="310" y="318">Too much work arrives at once.</text>`;
   const scaled = `${marker('scaled')}
     ${users('scaled',40)}
     ${route('scaled','73,166 96,166')}
@@ -2847,13 +2847,13 @@ var ChangeExplanationHLJS=(()=>{var kc=Object.create;var we=Object.definePropert
     ${route('scaled','240,236 256,236 256,166 272,166')}
     ${route('scaled','338,166 364,166')}${route('scaled','436,166 460,166')}${route('scaled','530,166 560,166')}
     ${node(40,166,66,'Frontend','client')}${node(120,166,48,'LB','generic','traffic-added')}
-    ${node(210,96,60,'API 1','server','traffic-changed')}${node(210,166,60,'API 2','server','traffic-added')}${node(210,236,60,'API 3','server','traffic-added')}
+    ${node(210,96,60,'API','server','traffic-changed')}${node(210,166,60,'API','server','traffic-added')}${node(210,236,60,'API','server','traffic-added')}
     ${node(305,166,66,'Queue','queue','traffic-added')}${node(400,166,72,'Workers','worker','traffic-added')}${node(495,166,70,'DB pool','database','traffic-added')}${node(590,166,60,'DB','database')}
-    <text class="traffic-note" x="210" y="291">3 API replicas</text>
-    <text class="traffic-note" x="400" y="218">12 concurrent</text>
+    <text class="traffic-note" x="210" y="291">API replicas</text>
+    <text class="traffic-note" x="400" y="218">Parallel work</text>
     <g class="traffic-waiting"></g><g class="traffic-active"></g><g class="traffic-rejected"></g>
     <text class="traffic-queue-label" x="305" y="278"></text>
-    <text class="traffic-note" x="310" y="318">Bounded durable queue · 24 requests/s total</text>`;
+    <text class="traffic-note" x="310" y="318">Waiting work stays in the queue.</text>`;
   const diagrams = {};
   for (const [side, markup] of [['current', current], ['scaled', scaled]]) {
     const placeholder = document.getElementById(`traffic-${side}-diagram`);
@@ -2916,7 +2916,7 @@ var ChangeExplanationHLJS=(()=>{var kc=Object.create;var we=Object.definePropert
     const summary = side => ({received: side.received, completed: side.completed, lost: side.lost,
       waiting: side.waiting.length, active: side.active.length, capacity: side.capacity,
       slots: side.slots, maxWaiting: side.maxWaiting});
-    return {elapsed: engine.elapsed, demand,
+    return {elapsed: engine.elapsed, demand, playbackRate: PLAYBACK_RATE,
       schedule: {cycleSeconds: CYCLE_SECONDS, burstSeconds: BURST_SECONDS, burstRate: demand*CYCLE_SECONDS/BURST_SECONDS},
       current: summary(engine.current), scaled: summary(engine.scaled)};
   }
@@ -2935,13 +2935,8 @@ var ChangeExplanationHLJS=(()=>{var kc=Object.create;var we=Object.definePropert
   }
   const dot = (x, y, extra = '') => `<circle class="traffic-request ${extra}" cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="4"/>`;
   function paint() {
-    const state = snapshot();
     for (const name of ['current', 'scaled']) {
       const side = engine[name], display = diagrams[name];
-      for (const metric of ['active','waiting','completed','lost']) {
-        const target = root.querySelector(`[data-traffic-side="${name}"][data-traffic-metric="${metric}"]`);
-        if (target) target.textContent = state[name][metric];
-      }
       const status = document.getElementById(`traffic-${name}-state`);
       if (status) status.textContent = !side.received ? 'Ready' : side.waiting.length === side.maxWaiting && side.lost
         ? 'Full: overflow rejected' : side.waiting.length ? name === 'scaled' ? 'Queue buffering burst' : 'Waiting callers'
@@ -2963,8 +2958,7 @@ var ChangeExplanationHLJS=(()=>{var kc=Object.create;var we=Object.definePropert
       display.waiting.innerHTML = side.waiting.map((_, index) => name === 'current'
         ? dot(194+(index%3)*13,242+Math.floor(index/3)*13,'traffic-pending')
         : dot(277+(index%9)*7,231+Math.floor(index/9)*9,'traffic-pending')).join('');
-      display.label.textContent = name === 'current' ? `Waiting callers (${side.waiting.length}/${side.maxWaiting})`
-        : `${side.waiting.length}/${side.maxWaiting} queued`;
+      display.label.textContent = name === 'current' ? 'Waiting callers' : 'Queued work';
       display.rejected.innerHTML = side.rejected.map(request => {
         const progress = (engine.elapsed-request.rejected)/.8;
         const lane = (request.id%3-1)*70;
@@ -2978,7 +2972,9 @@ var ChangeExplanationHLJS=(()=>{var kc=Object.create;var we=Object.definePropert
     root.dataset.trafficMode = representative ? 'static' : moving() ? 'playing' : 'paused';
     if (demandControl) demandControl.value = String(demand);
     const output = document.getElementById('traffic-demand-value');
-    if (output) output.textContent = `${demand} requests/s`;
+    const intensity = demand <= 8 ? 'Light' : demand <= 24 ? 'Busy' : 'Heavy';
+    if (output) output.textContent = intensity;
+    demandControl?.setAttribute('aria-valuetext', `${intensity} traffic`);
   }
   function reset() {
     engine = makeEngine();
@@ -3044,7 +3040,7 @@ var ChangeExplanationHLJS=(()=>{var kc=Object.create;var we=Object.definePropert
   else paint();
   function frame(timestamp) {
     if (moving()) {
-      if (previousFrame !== null) advance((timestamp-previousFrame)/1000);
+      if (previousFrame !== null) advance((timestamp-previousFrame)/1000*PLAYBACK_RATE);
       previousFrame = timestamp;
     } else previousFrame = null;
     requestAnimationFrame(frame);

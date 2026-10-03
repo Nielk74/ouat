@@ -23,7 +23,6 @@
 #traffic-model .traffic-overloaded .traffic-queue-label { fill: var(--ink); }
 #traffic-model .traffic-queue-label { font-size: 12px; font-variant-numeric: tabular-nums; }
 #traffic-model input[type="range"] { accent-color: var(--unchanged); min-width: 180px; max-width: 100%; }
-#traffic-model [data-traffic-metric] { font-variant-numeric: tabular-nums; }
 #traffic-model #traffic-current-state, #traffic-model #traffic-scaled-state { min-height: 1.5em; color: var(--ink); font-size: 14px; }
 @media (max-width: 1000px) { #traffic-model .traffic-comparison { grid-template-columns: minmax(0, 1fr); } }
 @media print { #traffic-model { break-inside: avoid; } #traffic-model #traffic-restart, #traffic-model input[type="range"] { display: none; } }

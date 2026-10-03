@@ -53,6 +53,7 @@ export async function checkTraffic(evaluate) {
   await new Promise(done=>setTimeout(done,200));
   const afterPlay = await evaluate('window.ChangeExplanationTraffic.snapshot().elapsed');
   if (afterPlay <= beforePlay) throw new Error('Play does not advance visible traffic.');
+  if (afterPlay-beforePlay > .09) throw new Error('Teaching playback is too fast; 200 ms should advance about 50 ms of model time.');
   await evaluate(`document.getElementById('motion-pause').click()`);
   const paused = await evaluate('JSON.stringify(window.ChangeExplanationTraffic.snapshot())');
   await new Promise(done=>setTimeout(done,160));
