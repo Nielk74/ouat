@@ -2,17 +2,16 @@
   "version": 1,
   "mode": "review",
   "title": "Document diagram playback controls",
-  "summary": "The README now explains System, Play, and Pause, including the report-only override for reduced motion. This example explains a documentation change; it does not verify browser behavior.",
+  "summary": "The README adds guidance for System, Play, and Pause.",
   "context": {
-    "problem": "Readers need to understand why a diagram may be static and how playback can be enabled.",
-    "baseline": "The previous README had no dedicated diagram-animation guidance.",
-    "scope": "Only the new README playback paragraph is explained. Renderer changes and historical test results are outside this scope.",
+    "baseline": "The previous README had no playback guidance.",
+    "scope": "README playback paragraph only.",
     "comparison": {
       "base": "552990a7a0e037d4c7b1d2a7cd533d28ae456e64",
       "head": "e7a4f99e24cd1e4e1daa228cc84c21d0bee04a05",
       "inspectedAt": "2026-10-03",
       "included": [
-        "README.md:33 at the pinned historical revision"
+        "README.md:33 at the pinned revision"
       ],
       "excluded": [
         "Current working tree changes",
@@ -26,7 +25,6 @@
       "title": "Explain the three playback options",
       "status": "new",
       "description": "System follows the motion preference; Play enables motion for the report; Pause freezes playback.",
-      "why": "A static diagram can be expected behavior under reduced motion.",
       "evidence": [
         {
           "label": "Read the inspected README paragraph",
@@ -34,7 +32,7 @@
           "line": 33,
           "revision": "e7a4f99e24cd1e4e1daa228cc84c21d0bee04a05",
           "url": "https://github.com/Nielk74/ouat/blob/e7a4f99e24cd1e4e1daa228cc84c21d0bee04a05/README.md#L33",
-          "detail": "Inspected with git show at the pinned revision. The statements describe the documented controls, not independently verified runtime behavior."
+          "detail": "Inspected with git show at the pinned revision; browser behavior is unverified."
         }
       ]
     }
@@ -42,13 +40,8 @@
   "impact": [
     {
       "change": "playback-docs",
-      "basis": "observed",
-      "description": "The documentation now describes the controls and the reduced-motion override."
-    },
-    {
-      "change": "playback-docs",
       "basis": "inferred",
-      "description": "The guidance may help readers distinguish intentional static playback from a malfunction; no usability measurement is claimed."
+      "description": "May help readers recognize intentional static playback."
     }
   ]
 }

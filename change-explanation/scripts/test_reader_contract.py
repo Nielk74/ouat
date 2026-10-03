@@ -59,6 +59,41 @@ class ReaderContractTests(unittest.TestCase):
     def errors(self):
         return [item for item in report.validate(self.data) if item["level"] == "error"]
 
+    def test_small_change_needs_no_redundant_narrative_or_impact(self):
+        del self.data["context"]["problem"]
+        del self.data["changes"][0]["why"]
+        del self.data["impact"]
+        self.assertFalse(self.errors())
+        html = report.render(self.data)
+        self.assertNotIn('id="impact"', html)
+        self.assertNotIn('href="#impact"', html)
+        self.assertNotIn('class="why"', html)
+        self.assertIn("base-sha to head-sha", ReaderPage(html).text)
+
+    def test_visual_and_code_can_explain_themselves(self):
+        self.data["changes"][0]["visual"] = {
+            "template": "flow", "nodes": [{"id": "call", "label": "Call", "status": "changed"}], "edges": [],
+        }
+        self.data["changes"][0]["code"] = {"before": "call()", "after": "retry(call)"}
+        self.assertFalse(self.errors())
+        html = report.render(self.data)
+        self.assertNotIn("<figcaption>", html)
+        self.assertNotIn('class="code-summary"', html)
+        self.assertIn('aria-label="Process flow"', html)
+        self.assertIn("Excerpt lines", ReaderPage(html).text)
+
+    def test_motion_meaning_is_explained_once_per_page(self):
+        visual = {"template": "flow", "nodes": [
+            {"id": "call", "label": "Call", "status": "unchanged"},
+            {"id": "retry", "label": "Retry", "status": "new"}],
+            "edges": [{"from": "call", "to": "retry", "label": "Eligible failure", "status": "new", "transport": "flow", "animate": True}]}
+        self.data["context"]["visual"] = visual
+        self.data["changes"][0]["visual"] = visual
+        html = report.render(self.data)
+        self.assertEqual(html.count('id="motion-key"'), 1)
+        self.assertEqual(html.count('aria-describedby="motion-key"'), 2)
+        self.assertNotIn('class="packet-guidance"', html)
+
     def evidence(self, **extra):
         item = {"label": "Inspected retry eligibility", "file": "src/client.py", "line": 42,
                 "revision": "head-sha", **extra}

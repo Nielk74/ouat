@@ -2,22 +2,18 @@
   "version": 1,
   "mode": "plan",
   "title": "Recover transient request failures",
-  "summary": "Retry safe operations after transient failures, within the existing deadline. The proposal adds upstream calls; operation safety and load tolerance need validation.",
+  "summary": "Retry safe transient failures within the existing deadline.",
   "context": {
-    "problem": "In this illustrative scenario, a brief upstream failure immediately ends a request even when another attempt could succeed.",
-    "baseline": "Hypothetical current behavior: the request service makes one upstream attempt and returns its result or error.",
-    "scope": "Example proposal for evaluating the report format. No project code, implementation, or test results have been reviewed.",
+    "baseline": "One upstream attempt; a failure ends the request.",
+    "scope": "Hypothetical proposal; project code and production behavior are unverified.",
     "constraints": [
-      "Preserve the response shape and overall deadline.",
-      "Retry only operations known to be safe to repeat."
+      "Preserve the response shape and deadline."
     ],
     "assumptions": [
-      "Failure classification and operation safety must be available from upstream contracts.",
-      "Example retry limits require workload validation."
+      "Confirm operation safety and failure classification with upstream contracts."
     ],
     "visual": {
       "template": "dependency-map",
-      "caption": "The service makes one attempt; a transient failure ends the request.",
       "nodes": [
         {
           "id": "client",
@@ -48,7 +44,7 @@
           "to": "upstream",
           "label": "Current single upstream attempt",
           "status": "unchanged",
-          "issue": "A short-lived upstream failure immediately ends the request. Even if a safe repeat could succeed, this baseline makes no second attempt.",
+          "issue": "A transient failure ends the request without another attempt.",
           "shortLabel": "Single attempt"
         }
       ]
@@ -59,11 +55,9 @@
       "id": "retry-policy",
       "title": "Introduce a bounded retry policy",
       "status": "new",
-      "description": "Add a policy inside the request service. A successful first attempt follows the existing path; an eligible transient failure can receive another attempt.",
-      "why": "Some short-lived failures may recover without requiring the client to submit a new request.",
+      "description": "Add a bounded retry policy for eligible transient failures.",
       "visual": {
         "template": "before-after",
-        "caption": "The initial attempt and response format stay the same. Recovery is added between an eligible failure and the final result.",
         "before": [
           {
             "label": "Initial upstream attempt",
@@ -71,8 +65,7 @@
           },
           {
             "label": "Every failure immediately ends the request",
-            "status": "removed",
-            "detail": "There is no recovery step."
+            "status": "removed"
           },
           {
             "label": "Existing response format",
@@ -87,8 +80,7 @@
           {
             "label": "Bounded retry policy",
             "status": "new",
-            "animate": true,
-            "detail": "Recover only when eligibility and remaining budget permit it."
+            "animate": true
           },
           {
             "label": "Existing response format",
@@ -101,11 +93,9 @@
       "id": "eligibility",
       "title": "Make retry eligibility explicit",
       "status": "changed",
-      "description": "Evaluate operation safety, failure classification, remaining attempts, and remaining time before scheduling another attempt. Permanent errors and ineligible operations return immediately.",
-      "why": "Recovery must not repeat unsafe work or consume an unbounded amount of time.",
+      "description": "Require a safe operation, transient error, attempt budget, and time budget before retrying.",
       "visual": {
         "template": "flow",
-        "caption": "The new decision protects the existing return path. A retry loops back to another attempt only while every eligibility condition holds.",
         "nodes": [
           {
             "id": "attempt",
@@ -121,14 +111,12 @@
             "id": "eligible",
             "label": "Retry allowed?",
             "status": "new",
-            "detail": "Safe operation + transient error + attempt budget + time budget.",
             "kind": "decision"
           },
           {
             "id": "wait",
             "label": "Wait within deadline",
-            "status": "new",
-            "detail": "Apply bounded backoff and jitter before the next attempt."
+            "status": "new"
           }
         ],
         "edges": [
@@ -179,32 +167,28 @@
       "id": "limits",
       "title": "Define limits and preserve the external contract",
       "status": "changed",
-      "description": "Use an explicit attempt cap and bounded waits. Keep the original request deadline and response shape. These example values describe a proposal, not measured production settings.",
-      "why": "A small, visible policy is easier to reason about and tune than implicit recovery behavior.",
+      "description": "Cap total attempts at three and keep waits within the request deadline.",
       "visual": {
         "template": "comparison",
-        "caption": "Recovery settings change; externally visible response structure and the overall deadline remain the constraints.",
         "rows": [
           {
             "label": "Total attempts",
             "before": "1",
             "after": "At most 3, including the first attempt",
-            "status": "changed",
-            "reason": "Bound additional upstream work."
+            "status": "changed"
           },
           {
             "label": "Wait between attempts",
             "before": "Not present",
             "after": "200 ms, then 400 ms, when the remaining deadline permits",
-            "status": "new",
-            "reason": "Leave a short recovery interval."
+            "status": "new"
           },
           {
             "label": "Jitter",
             "before": "Not present",
             "after": "An additional 0–100 ms per wait",
             "status": "new",
-            "reason": "Reduce synchronized retry attempts."
+            "reason": "Reduce synchronized retries."
           },
           {
             "label": "Request deadline",
@@ -225,11 +209,9 @@
       "id": "states",
       "title": "Record retry states for operational diagnosis",
       "status": "new",
-      "description": "Track attempting, waiting, and finished states with the attempt count. Record why recovery stopped without adding fields to the client response.",
-      "why": "Operators need to distinguish a permanent error from an exhausted retry budget when investigating failures.",
+      "description": "Record attempt counts and stop reasons without changing the client response.",
       "visual": {
         "template": "state-transitions",
-        "caption": "Waiting is the new state. Completion includes a result or a recorded stop reason; another attempt always passes through the policy checks.",
         "nodes": [
           {
             "id": "attempting",
@@ -245,7 +227,7 @@
             "id": "finished",
             "label": "Finished",
             "status": "changed",
-            "detail": "Success, ineligible failure, or exhausted budget, with a recorded reason."
+            "detail": "Success, ineligible failure, or exhausted budget."
           }
         ],
         "edges": [
@@ -284,37 +266,25 @@
   "manualChanges": [
     {
       "change": "eligibility",
-      "action": "Confirm and document which upstream operations are safe to repeat before enabling retries for them.",
-      "prerequisite": "The relevant upstream operation contracts are available.",
-      "verification": "Every enabled operation has an explicit safety rule; unknown operations remain ineligible."
+      "action": "Confirm which operations are safe to repeat before enabling retries.",
+      "verification": "Unknown operations remain ineligible."
     },
     {
       "change": "limits",
-      "action": "Review the proposed attempt and waiting limits against the service deadline and representative upstream latency.",
-      "prerequisite": "Representative request latency and the existing deadline are known.",
-      "verification": "The selected settings preserve the overall deadline and have been exercised under transient failure."
+      "action": "Validate attempt and wait limits against request latency and deadline.",
+      "verification": "Confirm the deadline holds under transient failures."
     }
   ],
   "impact": [
     {
-      "change": "retry-policy",
-      "basis": "expected",
-      "description": "Some eligible transient failures may recover inside the original request. A successful first attempt keeps the existing behavior; no recovery rate is claimed without measurement."
-    },
-    {
-      "change": "eligibility",
-      "basis": "expected",
-      "description": "Unsafe operations and permanent failures end immediately. Correct failure classification becomes a dependency of recovery behavior."
-    },
-    {
       "change": "limits",
       "basis": "expected",
-      "description": "Eligible failures can produce additional upstream calls and waiting time. The policy caps total attempts and keeps recovery within the original deadline."
+      "description": "Retries add upstream calls and waiting."
     },
     {
       "change": "states",
       "basis": "expected",
-      "description": "Operational records gain attempt counts and stop reasons. Client payloads remain unchanged; logging volume may increase for retried requests."
+      "description": "Retry logging may increase."
     }
   ],
   "risks": [
@@ -322,17 +292,17 @@
       "change": "eligibility",
       "title": "Repeating an unsafe operation",
       "severity": "important",
-      "condition": "An operation is incorrectly classified as safe to repeat, and its first attempt already performed a side effect.",
-      "consequence": "A retry can perform the side effect again.",
-      "mitigation": "Use an explicit eligibility rule for each operation and leave unknown operations ineligible. Verify safety with the upstream contract."
+      "condition": "An operation is misclassified as safe after its first attempt performed a side effect.",
+      "consequence": "A retry can repeat the side effect.",
+      "mitigation": "Confirm each operation with its upstream contract; leave unknown operations ineligible."
     },
     {
       "change": "limits",
       "title": "Amplifying an upstream outage",
       "severity": "important",
-      "condition": "Many concurrent requests encounter the same transient failure and become eligible to retry.",
-      "consequence": "Additional attempts can increase load on the upstream system while it is already unhealthy.",
-      "mitigation": "Keep the attempt cap and jitter, measure behavior under load, and revisit eligibility or limits if the upstream cannot tolerate the extra work."
+      "condition": "Concurrent requests retry the same transient failure.",
+      "consequence": "Extra calls can increase load on an unhealthy upstream.",
+      "mitigation": "Keep the attempt cap and jitter; validate upstream tolerance under load."
     }
   ]
 }

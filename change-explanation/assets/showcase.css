@@ -1,0 +1,77 @@
+/* Explorer-only styles; ordinary reports never load these. */
+.showcase { max-width: 1320px; padding: 40px 36px 60px; margin: 0 auto; }
+.showcase-hero { padding: 0 0 20px; }
+.showcase-hero .eyebrow { color: var(--changed); font: 12px var(--mono); letter-spacing: .08em; }
+.showcase h1 { font-size: clamp(28px, 3vw, 36px); margin: 0 0 10px; line-height: 1.2; }
+.showcase .summary { max-width: 70ch; font-size: 16px; margin: 0 0 8px; }
+.showcase-counts { display: flex; flex-wrap: wrap; gap: 10px; margin: 24px 0 20px; }
+.showcase-counts a { color: var(--ink); padding: 10px 16px; background: var(--paper); border: 1px solid #646970; border-radius: 5px; text-decoration: none; font-size: 14px; }
+.showcase-counts strong { color: var(--changed); font: 20px var(--mono); margin-right: 5px; }
+.showcase-note, .section-intro { max-width: 85ch; color: var(--muted); }
+.showcase-note { font-size: 13px; margin: 0 0 12px; }
+.showcase-toolbar { position: sticky; top: 0; z-index: 8; border: 1px solid var(--line); background: var(--canvas); }
+.showcase-toolbar .section-navigation { position: sticky; top: 0; margin: 0; padding: 9px 14px; border: 0; border-bottom: 1px solid var(--line); gap: 4px 24px; }
+.showcase-toolbar .section-navigation a { font-size: 14px; }
+.showcase-toolbar .motion-controls { position: static; margin: 0; padding: 2px 14px; border: 0; border-radius: 0; background: var(--paper); gap: 8px 24px; }
+.showcase-section { padding: 28px 0 0; margin: 0; scroll-margin-top: 142px; }
+.showcase-section h2 { font-size: 25px; margin-bottom: 6px; }
+.section-intro { margin: 8px 0 24px; }
+.showcase-demo { margin: 0 0 16px; padding: 18px 0; background: transparent; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; scroll-margin-top: 142px; }
+.demo-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+.demo-heading h3 { font-size: 20px; margin: 0; }
+.demo-description { color: var(--muted); margin: 8px 0 0; max-width: 90ch; font-size: 15px; }
+.showcase-demo .visual { margin-top: 12px; border: 0; border-radius: 0; }
+.showcase-demo > .visual > .visual-heading { display: none; }
+.showcase button { font: 14px var(--sans); color: var(--ink); background: var(--chrome); border: 1px solid #818790; border-radius: 4px; padding: 9px 13px; cursor: pointer; min-height: 40px; }
+.showcase button:hover { background: #41454b; }
+.showcase button:disabled { color: var(--muted); cursor: default; opacity: .7; }
+.showcase button:focus-visible, .showcase input:focus-visible, .showcase select:focus-visible, .demo-recipe summary:focus-visible { outline: 2px solid var(--new); outline-offset: 3px; }
+.demo-recipe { margin: 8px 0 0; border-top: 0; padding-top: 0; }
+.demo-recipe summary { cursor: pointer; padding: 8px 0; color: var(--ink); font-size: 14px; }
+.recipe-actions { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
+.copy-status { font-size: 14px; color: var(--muted); }
+.recipe-json { max-height: 380px; overflow: auto; padding: 16px; margin: 8px 0 0; background: var(--editor); border: 1px solid var(--line); font: 13px/1.65 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.showcase-enhanced .showcase-demo:not(.in-view) *,
+.showcase-enhanced .showcase-demo:not(.in-view) *::before,
+.showcase-enhanced .showcase-demo:not(.in-view) *::after { animation-play-state: paused !important; }
+.showcase-demo.replaying *, .showcase-demo.replaying *::before, .showcase-demo.replaying *::after { animation: none !important; }
+.showcase .icon-library { padding: 36px 0 0; max-width: none; }
+.icon-search-controls { display: flex; align-items: end; flex-wrap: wrap; gap: 14px; margin: 22px 0 16px; }
+.icon-search-controls label { display: grid; gap: 6px; font-size: 14px; min-width: 200px; }
+.icon-search-controls label:first-child { flex: 1; }
+.icon-search-controls input, .icon-search-controls select { padding: 9px 12px; width: 100%; min-height: 42px; font: 15px var(--sans); color: var(--ink); background: var(--editor); border: 1px solid #818790; border-radius: 4px; }
+.icon-search-controls input::placeholder { color: var(--muted); }
+#icon-count { margin-bottom: 9px; color: var(--muted); font-size: 14px; min-width: 118px; }
+.showcase .icon-grid { grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); }
+.showcase .icon-card { gap: 7px; padding: 16px; }
+.showcase .icon-card[hidden], #icon-empty[hidden] { display: none; }
+.showcase .icon-tile { padding: 0; color: var(--unchanged); background: transparent; }
+.showcase .icon-tile .entity-icon:not(.brand-art), .showcase .icon-tile .ui-icon { color: var(--unchanged); }
+.showcase .icon-card h3 { margin: 0; font-size: 15px; }
+.icon-category { font-size: 12px; color: var(--muted); }
+.showcase .icon-card code { font-size: 12px; overflow-wrap: anywhere; }
+.showcase .icon-card a { font-size: 12px; }
+#icon-empty { padding: 18px; background: var(--paper); border: 1px solid var(--line); }
+.showcase-statuses { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.showcase-statuses .element { padding: 12px; gap: 8px; }
+.showcase-statuses .element-art { width: 34px; flex-basis: 34px; }
+.showcase-statuses .entity-kind { display: none; }
+.showcase-statuses .badge { margin: 0; }
+.showcase-statuses h4 { display: none; }
+.sample-badge { font-size: 12px; padding: 3px 8px; border: 1px solid #818790; border-radius: 4px; color: var(--muted); }
+.showcase-report-example { background: var(--canvas); padding: 20px; margin-top: 18px; border: 1px solid var(--line); border-radius: 5px; }
+.showcase-report-example .masthead h1 { font-size: 28px; }
+.showcase-report-example .summary { font-size: 16px; }
+.showcase-report-example .section { scroll-margin-top: 142px; }
+@media (max-width: 900px) { .showcase-statuses { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) {
+  .showcase { padding: 24px 16px; }
+  .showcase-toolbar { position: static; }
+  .showcase-toolbar .section-navigation { position: sticky; }
+  .showcase-demo { padding: 14px; }
+  .showcase-statuses { grid-template-columns: 1fr; }
+  .icon-search-controls label { min-width: 0; width: 100%; }
+  .showcase .icon-grid { grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); }
+  .showcase-report-example { padding: 12px; }
+}
+@media print { .showcase-toolbar, .demo-replay, .icon-search-controls, .demo-recipe { display: none; } .showcase-demo { break-inside: avoid; } }

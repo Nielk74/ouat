@@ -238,7 +238,7 @@ def validate(report):
     if diagnostics:
         return diagnostics
     if "summary" not in report:
-        diagnostics.append(diagnostic("$.summary", "No opening summary is supplied.", "For new explanations, add two short sentences stating the change and its main consequence.", "warning"))
+        diagnostics.append(diagnostic("$.summary", "No opening summary is supplied.", "Add a short statement of the change and its main consequence.", "warning"))
     ids = set()
     for index, change in enumerate(report["changes"]):
         if change["id"] in ids:
@@ -261,12 +261,8 @@ def validate(report):
         for index, item in enumerate(report.get(section, [])):
             if item["change"] not in ids:
                 diagnostics.append(diagnostic(f"$.{section}[{index}].change", f'Unknown change ID "{item["change"]}".', "Reference an ID declared in changes."))
-    covered = {item["change"] for item in report["impact"]}
-    for index, change in enumerate(report["changes"]):
-        if change["id"] not in covered:
-            diagnostics.append(diagnostic(f"$.changes[{index}].id", "This change has no associated impact.", "Add an impact referencing this ID; describe an uncertainty if the effect is not yet known."))
     if report["mode"] == "plan":
-        for index, impact in enumerate(report["impact"]):
+        for index, impact in enumerate(report.get("impact", [])):
             if impact["basis"] == "observed":
                 diagnostics.append(diagnostic(f"$.impact[{index}].basis", "A proposed impact cannot be observed.", 'Use "expected" or "inferred"; put current-state observations in context.'))
     return diagnostics
@@ -320,8 +316,7 @@ def render_evidence(source):
 
 
 def status_label(status, mode):
-    label = LABELS[status]
-    return label + " · proposed" if mode == "plan" and status != "unchanged" else label
+    return LABELS[status]
 
 
 def badge(status, mode):
@@ -348,7 +343,12 @@ def element(obj, mode, allow_motion=True):
     detail = f'<p>{text(obj["detail"])}</p>' if "detail" in obj else ""
     kind = obj.get("kind", "generic")
     meta = f'<code class="entity-meta">{text(obj["meta"])}</code>' if "meta" in obj else ""
-    return f'<div class="element status-{obj["status"]}{motion}"><div class="element-art">{icon(kind, 42, obj.get("brand"))}</div><div class="element-copy"><span class="entity-kind">{KINDS[kind]}</span>{badge(obj["status"], mode)}<h4>{text(obj["label"])}</h4>{meta}{detail}</div></div>'
+    role = f'<span class="entity-kind">{KINDS[kind]}</span>' if useful_kind(kind, obj["label"]) else ''
+    return f'<div class="element status-{obj["status"]}{motion}"><div class="element-art">{icon(kind, 42, obj.get("brand"))}</div><div class="element-copy">{role}{badge(obj["status"], mode)}<h4>{text(obj["label"])}</h4>{meta}{detail}</div></div>'
+
+
+def useful_kind(kind, label):
+    return kind != "generic" and KINDS[kind].casefold() != label.strip().casefold()
 
 
 def phase_style(index, count):
@@ -361,7 +361,7 @@ def render_graph_svg(visual, mode, prefix, vertical=False):
     orientation = "mobile" if vertical else "desktop"
     pieces = [f'<svg class="graph graph-{orientation}" viewBox="0 0 {width} {height}" role="img" aria-labelledby="{prefix}-title {prefix}-description">',
               f'<title id="{prefix}-title">{text(TEMPLATES[visual["template"]])}</title>',
-              f'<desc id="{prefix}-description">{text(visual["caption"])} Arrow labels explain each action or condition. Directed connection details follow.</desc>', '<defs>']
+              f'<desc id="{prefix}-description">{text(visual.get("caption", TEMPLATES[visual["template"]]))} Arrow labels explain each action or condition. Directed connection details follow.</desc>', '<defs>']
     strokes = {status: f"var(--{status})" for status in LABELS}
     strokes["issue"] = "var(--risk)"
     for status, color in strokes.items():
@@ -425,7 +425,8 @@ def render_graph_svg(visual, mode, prefix, vertical=False):
             if step.get("node") == node["id"]:
                 style = phase_style(step_index, len(visual["sequence"]))
                 pieces.append(f'<g class="behavior-phase behavior-wait" data-step="{step_index+1}" style="{style}" aria-hidden="true"><rect class="behavior-wait-outline" x="{x+4}" y="{y+4}" width="{w-8}" height="{h-8}" rx="5"/><g transform="translate({x+59} {y+76})"><circle class="behavior-clock-face" r="11"/><path class="behavior-clock-hands" d="M 0 -6 V 0 L 4 2"/></g></g>')
-        pieces.append(f'<text class="node-kind" x="{x+80}" y="{y+22}">{text(KINDS[kind].upper())}</text>')
+        if useful_kind(kind, node["label"]):
+            pieces.append(f'<text class="node-kind" x="{x+80}" y="{y+22}">{text(KINDS[kind].upper())}</text>')
         for index, line in enumerate(lines):
             pieces.append(f'<text class="node-label" x="{x+80}" y="{y+48+index*22}">{text(line)}</text>')
         for index, line in enumerate(textwrap.wrap(node.get("meta", ""), width=18)):
@@ -443,25 +444,21 @@ SCENARIOS = {
         "title": "Process stop interrupts in-flight work",
         "normal": ("Response stays open", "Work in progress", "Waiting for this result"),
         "failed": ("Response interrupted", "Execution interrupted", "No result from this attempt"),
-        "stages": ("Request and work are active", "Process stops before completion", "No result is stored by this attempt"),
     },
     "message-loss": {
         "title": "A message is lost before delivery",
         "normal": ("Message sent", "In transit", "Waiting for delivery"),
         "failed": ("Sent is not received", "Delivery lost", "Not received on this attempt"),
-        "stages": ("Sender hands off a message", "Message disappears before delivery", "Receiver gets no message on this attempt"),
     },
     "bottleneck": {
         "title": "Work arrives faster than it is processed",
         "normal": ("Work arriving", "Processing slowly", "Completion takes time"),
         "failed": ("More arrivals", "Backlog accumulating", "Later work waits longer"),
-        "stages": ("Work keeps arriving", "Pending work piles up at the slow stage", "Some work completes; the backlog remains"),
     },
     "saturation": {
         "title": "New work reaches an occupied capacity limit",
         "normal": ("Work arriving", "Capacity filling", "Existing work is active"),
         "failed": ("New work waits", "No free slot", "New work cannot complete yet"),
-        "stages": ("Available capacity is occupied", "More work arrives while slots are full", "New work must wait for capacity"),
     },
 }
 
@@ -498,9 +495,7 @@ def render_scenario(visual, mode):
         if role == "from":
             pieces.append('<div class="scenario-input" aria-hidden="true">'+ui_icon("message" if template == "message-loss" else "file", 38)+'</div>')
         pieces.append(f'<div class="scenario-state-pair scenario-component-state" aria-hidden="true"><span class="scenario-normal">{text(pattern["normal"][index])}</span><span class="scenario-failure">{text(pattern["failed"][index])}</span></div></div>')
-    pieces.append('</div><ol class="scenario-story" aria-label="Failure mechanism and result">')
-    pieces.extend(f'<li><span>{index:02d}</span>{text(stage)}</li>' for index, stage in enumerate(pattern["stages"], 1))
-    pieces.append(f'</ol><div class="scenario-explanation"><p><strong>Cause:</strong> {text(scenario["cause"])}</p><p class="scenario-consequence"><strong>Consequence:</strong> {text(scenario["consequence"])}</p></div><p class="scenario-note">Runtime states, not change statuses. Illustrative timing and capacity; the failure state remains visible when motion is reduced or printed. <a href="#motion-controls">Motion controls</a></p></div>')
+    pieces.append(f'</div><div class="scenario-explanation"><p><strong>Cause:</strong> {text(scenario["cause"])}</p><p class="scenario-consequence"><strong>Consequence:</strong> {text(scenario["consequence"])}</p></div></div>')
     return ''.join(pieces)
 
 
@@ -519,8 +514,6 @@ def render_graph(visual, mode, prefix):
         # Display switches restart CSS animations. Pair each canvas and strip so
         # their clocks restart together, instead of misleadingly diverging.
         pieces = [f'<div class="behavior-pane behavior-pane-{orientation}">{svg}{strip}</div>' for orientation, svg in zip(("desktop", "mobile"), pieces)]
-        waiting_note = " The clock marks waiting." if any("node" in step for step in visual["sequence"]) else ""
-        pieces.append(f'<p class="behavior-note">Ordered illustration, not measured timing.{waiting_note} Motion does not indicate change status. <a href="#motion-controls">Motion controls</a></p>')
     details = [node for node in visual["nodes"] if "detail" in node]
     if details:
         pieces.append('<div class="node-details">')
@@ -541,7 +534,7 @@ def render_graph(visual, mode, prefix):
     issues = [(node["label"], node["issue"]) for node in visual["nodes"] if "issue" in node]
     issues += [(f'Connection {index:02d}: {labels[edge["from"]]} → {labels[edge["to"]]}', edge["issue"]) for index, edge in enumerate(visual["edges"], 1) if "issue" in edge]
     if issues:
-        pieces.append('<div class="issue-notes"><h4>Why this behavior is problematic</h4><ul>')
+        pieces.append('<div class="issue-notes"><h4>Issue</h4><ul>')
         for label, issue in issues:
             pieces.append(f'<li>{ui_icon("alert", 20)}<div><strong>{text(label)}</strong><p>{text(issue)}</p></div></li>')
         pieces.append('</ul></div>')
@@ -571,8 +564,7 @@ def render_code(code, mode):
     file = f'<code class="code-file">{text(code["file"])}</code>' if "file" in code else '<span>Selected code</span>'
     symbol = f'<code class="code-symbol">{text(code["symbol"])}</code>' if "symbol" in code else ""
     language = f'<span class="code-language">{text(code["language"])}</span>' if "language" in code else ""
-    heading = "Illustrative proposal" if mode == "plan" else "Summarized excerpt"
-    pieces = [f'<div class="code-change"><div class="code-filebar">{ui_icon("file", 20)}{file}{symbol}<span class="code-kind">{heading}</span>{language}</div><div class="code-columns">']
+    pieces = [f'<div class="code-change"><div class="code-filebar">{ui_icon("file", 20)}{file}{symbol}{language}</div><div class="code-columns">']
     for side, lines in (("before", before), ("after", after)):
         title = "Before" if side == "before" else "Proposed" if mode == "plan" else "After"
         source_line = code.get(side + "Line")
@@ -587,7 +579,10 @@ def render_code(code, mode):
             number = source_line + index if source_line is not None else index + 1
             pieces.append(f'<span class="code-line {state}"><span class="code-lineno" aria-hidden="true">{number}</span><span class="code-sign" aria-hidden="true">{sign}</span><span class="code-text">{highlight_code(line)}</span></span>')
         pieces.append('</code></pre></div>')
-    pieces.append(f'</div><p class="code-summary">{text(code["summary"])}</p></div>')
+    pieces.append('</div>')
+    if "summary" in code:
+        pieces.append(f'<p class="code-summary">{text(code["summary"])}</p>')
+    pieces.append('</div>')
     return ''.join(pieces)
 
 
@@ -610,26 +605,32 @@ def render_visual(visual, mode, prefix, baseline=False):
         content = render_graph(visual, mode, prefix)
     visual_icon = "diff" if template in ("before-after", "comparison") else "topology"
     heading = "Baseline behavior" if baseline else TEMPLATES[template]
-    note = "Illustrative starting point" if baseline and mode == "plan" else "Before the change" if baseline else "Relationship view"
-    legend = f'<div class="problem-key">{ui_icon("alert", 17)}Problem in existing behavior — not a change status</div>' if any("issue" in item for item in visual.get("nodes", [])+visual.get("edges", [])) else ""
     classes = "visual visual-baseline" if baseline else "visual"
     symbols = {packet_symbol(edge) for edge in visual.get("edges", [])} - {None}
     flows = [edge for edge in visual.get("edges", []) if flow_signal(edge)]
     packet = bool(symbols or flows)
-    focus = f' aria-describedby="{prefix}-packet-note"' if packet else ""
-    guidance = ""
+    focus = ' aria-describedby="motion-key"' if packet or visual.get("sequence") or visual.get("scenario") else ""
     if packet:
         classes += " has-packets"
-        meanings = []
-        if "message" in symbols:
-            meanings.append("Moving envelope: message delivery.")
-        if "package" in symbols:
-            meanings.append("Moving package: deployment artifact.")
-        if flows:
-            meanings.append("Moving dots: execution flow." if all(edge.get("transport") == "flow" for edge in flows) else "Moving dots: requests or data transfers.")
-        meaning = " ".join(meanings)
-        guidance = f'<div class="packet-guidance" id="{prefix}-packet-note">{ui_icon("message" if "message" in symbols else "package" if symbols else "topology", 18)}<span>{meaning}<span class="packet-loop-hint"> Repeats automatically; not execution order or timing.</span><span class="packet-static-hint"> System motion is reduced; select Play to animate.</span></span><a href="#motion-controls">Motion controls</a></div>'
-    return f'<figure class="{classes}"{focus}><div class="visual-heading">{ui_icon(visual_icon)}{text(heading)}<span class="visual-heading-note">{note}</span></div>{legend}{guidance}<div class="visual-content">{content}</div><figcaption>{text(visual["caption"])}</figcaption></figure>'
+    caption = f'<figcaption>{text(visual["caption"])}</figcaption>' if "caption" in visual else ''
+    return f'<figure class="{classes}" aria-label="{text(heading)}"{focus}><div class="visual-heading">{ui_icon(visual_icon)}{text(heading)}</div><div class="visual-content">{content}</div>{caption}</figure>'
+
+
+def motion_controls(visuals, *, showcase=False):
+    meanings = []
+    edges = [edge for visual in visuals for edge in visual.get("edges", [])]
+    if any(flow_signal(edge) or edge.get("transport") in ("flow", "request", "read", "write") for edge in edges):
+        meanings.append("Dots: flow or requests")
+    if any(packet_symbol(edge) == "message" or edge.get("transport") == "message" for edge in edges):
+        meanings.append("Envelope: message")
+    if any(packet_symbol(edge) == "package" or edge.get("transport") == "deploy" for edge in edges):
+        meanings.append("Package: artifact")
+    if any(any("node" in step for step in visual.get("sequence", [])) for visual in visuals):
+        meanings.append("Clock: waiting")
+    meanings.append("Illustrative motion; timing and capacity are not measured")
+    key = text(" · ".join(meanings)) + '.'
+    playing = "Visible demos play." if showcase else "On."
+    return '<div class="motion-controls" id="motion-controls"><fieldset aria-describedby="motion-state"><legend>Motion</legend><div class="motion-options"><input type="radio" name="diagram-motion" id="motion-system" checked><label for="motion-system" title="Follow your device’s reduced-motion preference">System</label><input type="radio" name="diagram-motion" id="motion-play"><label for="motion-play" title="Enable motion for this page">Play</label><input type="radio" name="diagram-motion" id="motion-pause"><label for="motion-pause">Pause</label></div></fieldset><p id="motion-state"><span class="motion-system-normal">' + playing + '</span><span class="motion-system-reduced">Reduced motion. Select Play to animate.</span><span class="motion-playing">' + playing + '</span><span class="motion-paused">Paused.</span></p><p class="motion-key" id="motion-key">' + key + '</p></div>'
 
 
 def section(heading, anchor, number, content):
@@ -645,10 +646,11 @@ def render(report):
     brands = selected_brands(report)
     sections = [("Context", "context"), ("Proposed changes" if mode == "plan" else "Changes", "changes")]
     if report.get("manualChanges"):
-        sections.append(("Manual changes required", "manual"))
-    sections.append(("Expected impact" if mode == "plan" else "Impact", "impact"))
+        sections.append(("Manual actions", "manual"))
+    if report.get("impact"):
+        sections.append(("Impact", "impact"))
     if report.get("risks"):
-        sections.append(("Important risks", "risks"))
+        sections.append(("Risks", "risks"))
     indexes = {anchor: index for index, (_, anchor) in enumerate(sections, 1)}
     navigation = '<a class="section-link" href="#report" aria-label="Back to summary">Summary</a>' + ''.join(f'<a class="section-link" href="#{anchor}" aria-label="{heading}">{heading}</a>' for heading, anchor in sections)
     mode_name = "Proposed solution" if mode == "plan" else "Actual changes"
@@ -661,17 +663,18 @@ def render(report):
         links = ''.join(f'<li><a href="#change-{change["id"]}">{text(change["title"])}</a></li>' for change in report["changes"])
         summary += f'<details class="change-index"><summary>{len(report["changes"])} changes</summary><ol>{links}</ol></details>'
     legend = ''.join(f'<span class="legend-item status-{status}"><span class="swatch" aria-hidden="true"></span>{text(LABELS[status])}</span>' for status in LABELS)
-    code_count = sum("code" in change for change in report["changes"])
-    code_meta = f'<span>{code_count} summarized code changes</span>' if code_count else ''
-    header = f'<header class="masthead"><h1>{text(report["title"])}</h1>{summary}<div class="report-meta">{code_meta}<div class="legend" aria-label="Change status legend">{legend}</div></div></header><nav class="section-navigation" aria-label="Explanation sections">{navigation}</nav>'
+    if any("issue" in item for visual in [report["context"].get("visual", {})] + [change.get("visual", {}) for change in report["changes"]] for key in ("nodes", "edges") for item in visual.get(key, [])):
+        legend += f'<span class="legend-item">{ui_icon("alert", 16)}Issue</span>'
+    header = f'<header class="masthead"><h1>{text(report["title"])}</h1>{summary}<div class="report-meta"><div class="legend" aria-label="Change status legend">{legend}</div></div></header><nav class="section-navigation" aria-label="Explanation sections">{navigation}</nav>'
     visuals = [report["context"].get("visual", {})] + [change.get("visual", {}) for change in report["changes"]]
     has_motion = any(visual.get("scenario") or visual.get("sequence") or any(item.get("animate") for key in ("nodes", "edges", "before", "after") for item in visual.get(key, [])) for visual in visuals)
     if has_motion:
-        header += '<div class="motion-controls" id="motion-controls"><fieldset aria-describedby="motion-state"><legend>Diagram motion</legend><div class="motion-options"><input type="radio" name="diagram-motion" id="motion-system" checked><label for="motion-system">System</label><input type="radio" name="diagram-motion" id="motion-play"><label for="motion-play">Play</label><input type="radio" name="diagram-motion" id="motion-pause"><label for="motion-pause">Pause</label></div></fieldset><p id="motion-state"><span class="motion-system-normal">Following system: animations on.</span><span class="motion-system-reduced">System reduced motion: static. Select Play to animate.</span><span class="motion-playing">Playing diagrams — report-only override.</span><span class="motion-paused">Diagrams paused.</span></p></div>'
+        header += motion_controls(visuals)
     context = report["context"]
     body = '<div class="context-grid">'
-    for key, label in (("problem", "Problem / goal"), ("baseline", "Comparison baseline")):
-        body += f'<div class="context-block"><span class="label">{label}</span><p>{text(context[key])}</p></div>'
+    for key, label in (("problem", "Goal"), ("baseline", "Baseline")):
+        if key in context:
+            body += f'<div class="context-block"><span class="label">{label}</span><p>{text(context[key])}</p></div>'
     body += '</div><div class="context-notes">'
     if "scope" in context:
         body += f'<h3>Scope</h3><p>{text(context["scope"])}</p>'
@@ -697,11 +700,12 @@ def render(report):
         body += f'<article class="change status-{change["status"]}" id="change-{change["id"]}"><div class="change-heading"><span class="change-id">{index:02d}</span><h3>{text(change["title"])}</h3>{badge(change["status"], mode)}</div><p class="change-description">{text(change["description"])}</p>'
         if "code" in change:
             body += render_code(change["code"], mode)
-        body += f'<p class="why"><strong>Why.</strong> {text(change["why"])}</p>'
+        if "why" in change:
+            body += f'<p class="why"><strong>Why.</strong> {text(change["why"])}</p>'
         if "visual" in change:
             body += render_visual(change["visual"], mode, "visual-" + change["id"])
         if change.get("evidence"):
-            label = "Basis for proposal" if mode == "plan" else "Evidence / verification"
+            label = "Basis" if mode == "plan" else "Evidence"
             body += f'<div class="evidence"><strong>{label}</strong><ul>' + ''.join(render_evidence(item) for item in change["evidence"]) + '</ul></div>'
         body += '</article>'
     if not report["changes"]:
@@ -715,13 +719,12 @@ def render(report):
                 if key in item:
                     body += f'<p class="detail"><strong>{label}:</strong> {text(item[key])}</p>'
             body += '</div>'
-        content += section("Manual changes required", "manual", indexes["manual"], body)
+        content += section("Manual actions", "manual", indexes["manual"], body)
     body = ''
-    for impact in report["impact"]:
+    for impact in report.get("impact", []):
         body += f'<div class="impact-item"><div class="item-meta">{reference(impact["change"], titles)}<span class="basis">{text(impact["basis"].capitalize())}</span></div><p>{text(impact["description"])}</p></div>'
-    if not report["impact"]:
-        body = '<p class="empty">No change impacts identified in the stated scope.</p>'
-    content += section("Expected impact" if mode == "plan" else "Impact", "impact", indexes["impact"], body)
+    if report.get("impact"):
+        content += section("Impact", "impact", indexes["impact"], body)
     if report.get("risks"):
         body = ''
         for risk_index, risk in enumerate(report["risks"], 1):
@@ -730,9 +733,8 @@ def render(report):
                 if key in risk:
                     body += f'<p><strong>{label}:</strong> {text(risk[key])}</p>'
             body += '</article>'
-        content += section("Important risks", "risks", indexes["risks"], body)
-    note = "Proposed design · implementation and outcomes are not verified." if mode == "plan" else "Actual changes · impact labels distinguish evidence from predictions."
-    footer = f'<footer class="footer"><span>{note}</span><span>Change explanation / v1</span></footer>'
+        content += section("Risks", "risks", indexes["risks"], body)
+    footer = '<footer class="footer">Change explanation / v1</footer>'
     sprites = (ASSETS / "entities.svg").read_text(encoding="utf-8") + (ASSETS / "ui-icons.svg").read_text(encoding="utf-8") + brand_sprite(brands)
     body = f'{sprites}<div class="shell">{topbar}<main class="report" id="report">{header}{content}{footer}{brand_credits(brands)}</main></div>'
     page = (ASSETS / "page.html").read_text(encoding="utf-8")
@@ -769,15 +771,18 @@ def main(argv=None):
     icons = commands.add_parser("icons", help="Generate a self-contained visual catalog of local component and brand icons")
     icons.add_argument("--output", type=Path, required=True)
     icons.add_argument("--force", action="store_true", help="Replace your existing generated icon catalog")
+    showcase = commands.add_parser("showcase", help="Generate an explorer-only gallery of icons, layouts, motion, and report elements")
+    showcase.add_argument("--output", type=Path, required=True)
+    showcase.add_argument("--force", action="store_true", help="Replace your existing generated showcase")
     args = parser.parse_args(argv)
     try:
-        if args.command != "icons":
+        if args.command in ("validate", "render"):
             report, diagnostics = load_report(args.source)
             if not diagnostics:
                 diagnostics = validate(report)
             if not emit(diagnostics, getattr(args, "json", False)):
                 return 1
-        if args.command in ("render", "icons"):
+        if args.command in ("render", "icons", "showcase"):
             output = args.output.resolve()
             if output.suffix.lower() != ".html":
                 raise ValueError("Output must have an .html extension.")
@@ -785,7 +790,11 @@ def main(argv=None):
                 raise ValueError("Output must not replace the source JSON.")
             if output == ROOT or ROOT in output.parents:
                 raise ValueError("Output must be outside the skill bundle to preserve reusable assets.")
-            html = render(report) if args.command == "render" else catalog_page((ASSETS / "entities.svg").read_text(encoding="utf-8"), (ASSETS / "ui-icons.svg").read_text(encoding="utf-8"), KINDS)
+            if args.command == "showcase":
+                from showcase import render_showcase
+                html = render_showcase(sys.modules[__name__])
+            else:
+                html = render(report) if args.command == "render" else catalog_page((ASSETS / "entities.svg").read_text(encoding="utf-8"), (ASSETS / "ui-icons.svg").read_text(encoding="utf-8"), KINDS)
             output.parent.mkdir(parents=True, exist_ok=True)
             with output.open("w" if args.force else "x", encoding="utf-8", newline="\n") as stream:
                 stream.write(html)

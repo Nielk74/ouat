@@ -38,10 +38,11 @@ class BranchMotionTests(unittest.TestCase):
             self.assertFalse(any(node.tag.endswith("use") for node in marker))
             self.assertFalse(any(node.attrib.get("class") == "connector-emphasis" for node in edge))
         html = report.render_visual(self.visual, "plan", "motion")
-        self.assertIn("Moving dots: execution flow", html)
-        self.assertIn("not execution order or timing", html)
-        self.assertIn("System motion is reduced; select Play", html)
-        self.assertIn('href="#motion-controls"', html)
+        self.assertIn('aria-describedby="motion-key"', html)
+        page = report.render(self.data)
+        self.assertIn("Dots: flow or requests", page)
+        self.assertIn("timing and capacity are not measured", page)
+        self.assertIn("Reduced motion. Select Play", page)
 
     def test_static_branches_need_no_extra_color_key(self):
         for item in self.visual["nodes"] + self.visual["edges"]:

@@ -227,12 +227,10 @@ class ReportTests(unittest.TestCase):
         visual = self.system["context"]["visual"]
         self.assertEqual({obj["status"] for obj in visual["nodes"] + visual["edges"]}, {"unchanged"})
         self.assertTrue(any("issue" in obj for obj in visual["nodes"]))
-        self.assertTrue(any("issue" in obj for obj in visual["edges"]))
+        self.assertTrue(any("issue" in obj for obj in visual["nodes"] + visual["edges"]))
         html = report.render_visual(visual, "plan", "baseline", baseline=True)
         self.assertIn("Baseline behavior", html)
-        self.assertIn("Illustrative starting point", html)
-        self.assertIn("Problem in existing behavior", html)
-        self.assertIn("Why this behavior is problematic", html)
+        self.assertIn('<h4>Issue</h4>', html)
         root = ET.fromstring(html)
         problem_nodes = [node for node in root.iter() if node.attrib.get("data-node") == "request"]
         self.assertTrue(problem_nodes)
@@ -329,10 +327,10 @@ class ReportTests(unittest.TestCase):
 
     def test_rejects_duplicate_ids_and_unlinked_impacts(self):
         self.example["changes"][1]["id"] = self.example["changes"][0]["id"]
-        self.example["impact"][2]["change"] = "missing-change"
+        self.example["impact"][0]["change"] = "missing-change"
         errors = self.errors(self.example)
         self.assertTrue(any("Duplicate change" in item["message"] for item in errors))
-        self.assertTrue(any(item["path"] == "$.impact[2].change" for item in errors))
+        self.assertTrue(any(item["path"] == "$.impact[0].change" for item in errors))
 
     def test_discriminated_templates_and_typos(self):
         self.example["changes"][0]["visual"]["template"] = "beforeAfter"
@@ -394,7 +392,7 @@ class ReportTests(unittest.TestCase):
                     artwork = next(child for child in packets[0] if child.tag.endswith("use"))
                     self.assertEqual(artwork.attrib["href"], expected)
                 html = report.render_visual(visual, "review", "transfer")
-                self.assertEqual('href="#motion-controls"' in html, bool(expected) or transport in ("request", "read", "write"))
+                self.assertEqual('aria-describedby="motion-key"' in html, bool(expected) or transport in ("request", "read", "write"))
 
     def test_deployment_packet_numbers_leave_the_transfer_corridor_clear(self):
         visual = copy.deepcopy(self.system["changes"][3]["visual"])
@@ -427,9 +425,9 @@ class ReportTests(unittest.TestCase):
     def test_packet_loop_uses_one_shared_native_motion_control(self):
         visual = self.system["changes"][0]["visual"]
         html = report.render_visual(visual, "plan", "packet-focus")
-        self.assertIn('aria-describedby="packet-focus-packet-note"', html)
-        self.assertIn('id="packet-focus-packet-note"', html)
-        self.assertIn('href="#motion-controls"', html)
+        self.assertIn('aria-describedby="motion-key"', html)
+        page = report.render(self.system)
+        self.assertEqual(page.count('id="motion-key"'), 1)
         inspector = PageInspector()
         inspector.feed(report.render(self.system))
         radios = [item for item in inspector.inputs if item.get("name") == "diagram-motion"]
@@ -438,7 +436,7 @@ class ReportTests(unittest.TestCase):
         self.assertIn("checked", radios[0])
         self.assertNotIn("checked", radios[1])
         self.assertEqual(inspector.scripts, 0)
-        self.assertIn('Repeats automatically; not execution order or timing.', html)
+        self.assertIn('Illustrative motion; timing and capacity are not measured', page)
         self.assertNotIn('Hover or focus', html)
         self.assertFalse(self.errors(self.system))
         visual["edges"][1]["animate"] = False
@@ -510,9 +508,7 @@ class ReportTests(unittest.TestCase):
         visual["scenario"]["consequence"] = "This attempt is interrupted; retrying after restart can still store the job's result."
         self.assertFalse(self.errors(self.system))
         root = ET.fromstring(report.render_scenario(visual, "plan"))
-        story = next(node for node in root.iter() if node.attrib.get("class") == "scenario-story")
         result_state = next(node for node in root.iter() if node.attrib.get("class") == "scenario-card scenario-card-to")
-        self.assertIn("this attempt", ''.join(story.itertext()))
         self.assertIn("this attempt", ''.join(result_state.itertext()))
         self.assertNotIn("never stored", ''.join(root.itertext()))
         self.assertIn(visual["scenario"]["consequence"], ''.join(root.itertext()))
@@ -741,11 +737,11 @@ class ReportTests(unittest.TestCase):
         self.assertFalse(self.errors(data))
         inspector = PageInspector()
         inspector.feed(report.render(data))
-        self.assertEqual(inspector.sections, ["context", "changes", "impact"])
+        self.assertEqual(inspector.sections, ["context", "changes"])
 
-    def test_required_impacts_and_strict_types(self):
+    def test_optional_impacts_and_strict_types(self):
         self.example["impact"] = []
-        self.assertEqual(len(self.errors(self.example)), len(self.example["changes"]))
+        self.assertFalse(self.errors(self.example))
         self.example["version"] = True
         self.assertTrue(any(item["path"] == "$.version" for item in self.errors(self.example)))
 

@@ -108,6 +108,56 @@ try {
     })`);
     if (layout.scrollWidth > layout.width + 1) throw new Error('Page overflows horizontally at ' + width + 'px.');
     if (layout.hidden) throw new Error('Report hides essential content.');
+    const showcaseInteractions = await evaluate(`(async () => {
+      if (!document.querySelector('.showcase')) return null;
+      const failures = [], settle = () => new Promise(done => setTimeout(done, 140));
+      const cards = [...document.querySelectorAll('[data-icon-id]')];
+      const search = document.getElementById('icon-search');
+      search.value = 'teamcity'; search.dispatchEvent(new Event('input'));
+      const matches = cards.filter(card => !card.hidden);
+      if (matches.length !== 1 || matches[0].dataset.iconId !== 'brand-teamcity') failures.push('Icon search does not find the exact asset.');
+      search.value = 'no-such-asset-xyz'; search.dispatchEvent(new Event('input'));
+      if (cards.some(card => !card.hidden) || document.getElementById('icon-empty').hidden) failures.push('Empty icon search lacks useful feedback.');
+      document.getElementById('icon-reset').click();
+      const category = document.getElementById('icon-category');
+      category.value = 'Generic components'; category.dispatchEvent(new Event('change'));
+      if (cards.filter(card => !card.hidden).length !== cards.filter(card => card.dataset.iconId.startsWith('entity-')).length) failures.push('Category filter omits generic icons.');
+      document.getElementById('icon-reset').click();
+      if (cards.some(card => card.hidden) || !document.getElementById('icon-count').textContent.startsWith(cards.length + ' of ')) failures.push('Reset does not restore all icons and count.');
+      const live = document.getElementById('motion-flow');
+      live.scrollIntoView({block:'center'}); await settle();
+      const marker = live.querySelector('.graph-desktop .flow-transfer, .graph-mobile .flow-transfer');
+      const visibleMarker = [...live.querySelectorAll('.flow-transfer')].find(node => node.closest('.graph').getClientRects().length);
+      if (!live.classList.contains('in-view') || getComputedStyle(visibleMarker).animationPlayState !== 'running') failures.push('Visible demo does not play.');
+      const offscreen = document.getElementById('scenario-message-loss');
+      if (offscreen.classList.contains('in-view') || offscreen.getAnimations({subtree:true}).some(animation => animation.playState !== 'paused')) failures.push('Off-screen demo keeps animating.');
+      const brief = document.getElementById('motion-node');
+      brief.scrollIntoView({block:'center'}); await settle();
+      await new Promise(done => setTimeout(done, 5200));
+      brief.querySelector('.demo-replay').click(); await settle();
+      const outline = [...brief.querySelectorAll('.node-emphasis')].find(node => node.closest('.graph').getClientRects().length);
+      const animation = outline.getAnimations()[0];
+      if (!animation || animation.playState !== 'running' || animation.currentTime > 1000) failures.push('Replay does not restart a finished brief highlight.');
+      document.getElementById('motion-pause').click(); await settle();
+      if (!brief.querySelector('.demo-replay').disabled || outline.getAnimations().some(animation => animation.playState !== 'paused')) failures.push('Replay ignores shared Pause.');
+      document.getElementById('motion-play').click(); await settle();
+      if (brief.querySelector('.demo-replay').disabled || outline.getAnimations().some(animation => animation.playState !== 'running')) failures.push('Play does not enable demo replay.');
+      const details = brief.querySelector('.demo-recipe'); details.open = true;
+      let copied = '';
+      const descriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+      Object.defineProperty(navigator, 'clipboard', {configurable:true, value:{writeText:async value => {copied=value;}}});
+      details.querySelector('[data-copy-json]').click(); await settle();
+      if (JSON.parse(copied).template !== 'communication' || details.querySelector('.copy-status').textContent !== 'JSON copied.') failures.push('Copy JSON does not copy the demonstrated recipe.');
+      Object.defineProperty(navigator, 'clipboard', {configurable:true, value:undefined});
+      details.querySelector('[data-copy-json]').click(); await settle();
+      if (!details.querySelector('.copy-status').textContent.startsWith('JSON selected.') || !getSelection().toString().includes('"template"')) failures.push('Clipboard fallback lacks selection and honest feedback.');
+      if (descriptor) Object.defineProperty(navigator, 'clipboard', descriptor); else delete navigator.clipboard;
+      getSelection().removeAllRanges(); details.open = false;
+      document.getElementById('motion-system').click();
+      window.scrollTo(0,0); await settle();
+      return {icons:cards.length, failures};
+    })()`);
+    if (showcaseInteractions?.failures.length) throw new Error('Showcase interaction failed: ' + JSON.stringify(showcaseInteractions.failures));
     const diagramText = await evaluate(`(() => {
       const failures = [];
       let checked = 0;
@@ -344,6 +394,8 @@ try {
         const control = document.getElementById('motion-pause');
         if (!control || !document.querySelector('label[for="motion-pause"]') || !document.getElementById(figure.getAttribute('aria-describedby'))) failures.push('Packet pause lacks a shared native labeled control.');
         figure.scrollIntoView({ block: 'center' });
+        await frame(); await frame();
+        await new Promise(done => setTimeout(done, 60));
         const animation = packet.getAnimations()[0];
         if (!animation || animation.animationName !== 'packet-transfer' || animation.effect.getTiming().iterations !== Infinity) {
           failures.push('Package is not looping automatically after a reading delay.');
@@ -402,6 +454,8 @@ try {
         if (!graph.getClientRects().length || !graph.querySelector('.behavior-phase')) continue;
         const figure = graph.closest('figure');
         figure.scrollIntoView({ block: 'center' });
+        await frame(); await frame();
+        await new Promise(done => setTimeout(done, 60));
         const pane = graph.closest('.behavior-pane') || figure;
         const phases = [...graph.querySelectorAll('.behavior-phase'), ...pane.querySelectorAll('.behavior-step-highlight')];
         const active = graph.querySelector('.behavior-travel');
@@ -461,6 +515,9 @@ try {
       const failures = [], samples = [];
       const frame = () => new Promise(done => requestAnimationFrame(done));
       for (const scene of document.querySelectorAll('.problem-scenario')) {
+        scene.scrollIntoView({block:'center'});
+        await frame(); await frame();
+        await new Promise(done => setTimeout(done, 60));
         const animations = scene.getAnimations({ subtree: true });
         if (!animations.length) { failures.push('Scenario has no playback.'); continue; }
         const visible = selector => [...scene.querySelectorAll(selector)].filter(node => Number(getComputedStyle(node).opacity) > .9).length;
@@ -480,7 +537,7 @@ try {
         const failed = await seek(8000), held = await seek(11000), replay = await seek(12500);
         const template = scene.dataset.scenario;
         if (!start.normal || start.failure || failed.normal || !failed.failure || held.normal || !held.failure || !replay.normal || replay.failure) failures.push(template + ': normal/failure/replay states are not synchronized.');
-        if (!scene.querySelector('.scenario-condition')?.textContent.trim() || !scene.querySelector('.scenario-explanation')?.textContent.trim() || scene.querySelectorAll('.scenario-story li').length !== 3) failures.push(template + ': condition or causal explanation is missing.');
+        if (!scene.querySelector('.scenario-condition')?.textContent.trim() || scene.querySelectorAll('.scenario-explanation p').length !== 2 || !scene.querySelector('.scenario-consequence')?.textContent.trim()) failures.push(template + ': condition or causal explanation is missing.');
         if (template === 'interrupted-work') {
           if (!(active.progress > start.progress && beforeFailure.progress > active.progress && failed.progress > .1 && failed.progress < .9 && Math.abs(held.progress-failed.progress) < .001)) failures.push('Interrupted work does not stop unfinished and hold its progress.');
           if (!start.jobVisible || failed.jobVisible || !scene.querySelector('.scenario-runtime .scenario-failure') || !scene.querySelector('.scenario-card-to .scenario-empty-result')) failures.push('Process stop does not interrupt the job and leave a missing result.');
@@ -522,7 +579,7 @@ try {
     let responsiveSequence = null;
     if (width === 1440 && sequenceMotion.samples.length) {
       await evaluate(`(() => {
-        for (const phase of document.querySelectorAll('#context .behavior-phase')) {
+        for (const phase of document.querySelectorAll('.behavior-phase')) {
           if (!phase.getClientRects().length) continue;
           const animation = phase.getAnimations()[0];
           animation.currentTime = 6000;
@@ -533,7 +590,7 @@ try {
       await sleep(120);
       responsiveSequence = await evaluate(`(() => {
         const active = selector => [...document.querySelectorAll(selector)].filter(node => node.getClientRects().length && Number(getComputedStyle(node).opacity) > .9).map(node => Number(node.dataset.step));
-        return { graph: active('#context .graph .behavior-phase'), strip: active('#context .behavior-step-highlight') };
+        return { graph: active('.graph .behavior-phase'), strip: active('.behavior-step-highlight') };
       })()`);
       if (!responsiveSequence.graph.length || !responsiveSequence.strip.length || responsiveSequence.graph.some(step => !responsiveSequence.strip.includes(step))) throw new Error('Responsive sequence loses synchronization: ' + JSON.stringify(responsiveSequence));
       await cdp('Emulation.setDeviceMetricsOverride', { width, height: 1100, deviceScaleFactor: 1, mobile: false });
@@ -543,15 +600,16 @@ try {
     // covers editor tokens on both diff backgrounds as well as status labels.
     const contrast = await evaluate(`(() => {
       const selectors = ['h1', '.summary', '.context-block p', '.context-block .label',
+        '.showcase-note', '.section-intro', '.demo-description', '.showcase button', '.icon-category', '.icon-search-controls label', '#icon-count', '.copy-status',
         '.context-notes p', '.context-notes li', '.section-navigation a', '.summary-risks a', '.connection-details summary',
         '.mode', '.change-id', '.change-description', '.badge', '.code-file',
         '.code-symbol', '.code-kind', '.code-language', '.code-side-title',
         '.code-text', '.code-sign', '.code-lineno', '.code-line-note', '[class^="token-"]', '.code-summary',
         '.visual-heading', 'figcaption', '.connection-index', '.connection-direction',
         '.connection-label', '.connection-status', '.transport-label', '.basis',
-        '.problem-key', '.issue-notes h4', '.issue-notes strong', '.issue-notes p',
-        '.packet-guidance', '.motion-controls legend', '.motion-controls label', '.motion-controls p', '.behavior-step strong', '.behavior-step div > span', '.behavior-note',
-        '.scenario-heading h4', '.scenario-heading > span', '.scenario-condition', '.scenario-runtime', '.scenario-component h5', '.scenario-component span', '.scenario-component-state > span', '.scenario-graphic-note', '.scenario-story li', '.scenario-explanation p', '.scenario-consequence strong', '.scenario-note', '.scenario-failure',
+        '.issue-notes h4', '.issue-notes strong', '.issue-notes p',
+        '.motion-controls legend', '.motion-controls label', '.motion-controls p', '.behavior-step strong', '.behavior-step div > span',
+        '.scenario-heading h4', '.scenario-heading > span', '.scenario-condition', '.scenario-runtime', '.scenario-component h5', '.scenario-component span', '.scenario-component-state > span', '.scenario-graphic-note', '.scenario-explanation p', '.scenario-consequence strong', '.scenario-failure',
         '.risk p', '.risk-severity', '.footer'];
       const rgba = value => value.match(/[\\d.]+/g).map(Number);
       const luminance = color => {
@@ -641,6 +699,9 @@ try {
       const markers = [...document.querySelectorAll('.message-packet, .flow-transfer, .behavior-travel')].filter(node => node.closest('.graph').getClientRects().length);
       const moving = markers[0];
       if (moving) {
+        moving.closest('figure').scrollIntoView({block:'center'});
+        await frame(); await frame();
+        await new Promise(done => setTimeout(done, 60));
         const before = moving.getScreenCTM();
         await new Promise(done => setTimeout(done, 200));
         const after = moving.getScreenCTM();
@@ -649,6 +710,9 @@ try {
       if (!document.getAnimations().length) failures.push('Play has no active animations.');
       const progress = document.querySelector('.scenario-progress-fill');
       if (progress) {
+        progress.closest('.problem-scenario').scrollIntoView({block:'center'});
+        await frame(); await frame();
+        await new Promise(done => setTimeout(done, 60));
         progress.getAnimations()[0].currentTime = 2000;
         await frame();
         const before = new DOMMatrix(getComputedStyle(progress).transform).a;
@@ -664,7 +728,7 @@ try {
       if (!animations.length) failures.push('Pause resets rather than freezes the animation.');
       control.checked = true;
       await frame();
-      if (document.getAnimations().some(animation => animation.playState !== 'running')) failures.push('Play does not resume paused reduced-motion playback.');
+      if (document.getAnimations().some(animation => animation.playState !== 'running' && !(document.documentElement.classList.contains('showcase-enhanced') && animation.effect.target.closest('.showcase-demo:not(.in-view)')))) failures.push('Play does not resume paused reduced-motion playback.');
       return { checked: markers.length, failures };
     })()`);
     if (reducedPlayback.failures.length) throw new Error('Invalid reduced-motion controls: ' + JSON.stringify(reducedPlayback.failures));
@@ -680,6 +744,16 @@ try {
     const screenshot = await cdp('Page.captureScreenshot', { format: 'png' });
     const output = join(resolve(destination), reportName + '-' + width + '.png');
     writeFileSync(output, Buffer.from(screenshot.data, 'base64'));
+    if (showcaseInteractions && width === 1440) {
+      await evaluate('window.scrollTo(0,0)');
+      const overview = await cdp('Page.captureScreenshot', {format:'png'});
+      writeFileSync(join(resolve(destination), 'showcase-overview.png'), Buffer.from(overview.data,'base64'));
+      for (const id of ['motion-flow', 'motion-sequence', 'scenario-interrupted-work', 'icons', 'elements']) {
+        const bounds = await evaluate('(() => {const node=document.getElementById(' + JSON.stringify(id) + ');return {y:node.getBoundingClientRect().top+scrollY,height:Math.min(node.offsetHeight,1500)};})()');
+        const shot = await cdp('Page.captureScreenshot',{format:'png',captureBeyondViewport:true,clip:{x:0,y:bounds.y,width,height:bounds.height,scale:1}});
+        writeFileSync(join(resolve(destination),'showcase-' + id + '.png'),Buffer.from(shot.data,'base64'));
+      }
+    }
     if (width === 1440) {
       const categories = await evaluate(`Array.from(document.querySelectorAll('.icon-library section'), node => ({ title: node.querySelector('h2').textContent, y: node.getBoundingClientRect().top + scrollY, height: node.offsetHeight })).filter(node => node.title !== 'Generic components')`);
       for (const category of categories) {
@@ -735,7 +809,7 @@ try {
         writeFileSync(join(resolve(destination), reportName + '-' + change.id + '.png'), Buffer.from(changeImage.data, 'base64'));
       }
     }
-    results.push({ ...layout, nativeMotion, diagramText, arrowLabels, navigationCheck, connectionBadges, diagramRouting, brandArtwork, packetMotion, sequenceMotion, scenarioMotion, responsiveSequence, staticPackets, staticScenarios, contrast, reducedMotion, reducedPlayback, printMotion, printScenarios, printDetails, screenshot: output });
+    results.push({ ...layout, nativeMotion, showcaseInteractions, diagramText, arrowLabels, navigationCheck, connectionBadges, diagramRouting, brandArtwork, packetMotion, sequenceMotion, scenarioMotion, responsiveSequence, staticPackets, staticScenarios, contrast, reducedMotion, reducedPlayback, printMotion, printScenarios, printDetails, screenshot: output });
   }
   if (pageErrors.length) throw new Error(pageErrors.join('; '));
   console.log(JSON.stringify({ checks: results, pageErrors }, null, 2));

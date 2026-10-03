@@ -320,7 +320,6 @@ h3 { font-size: 20px; letter-spacing: -.01em; }
 .visual { margin: 18px 0 0; border-color: #585c62; border-radius: 6px; background: var(--editor); }
 .visual-heading { display: flex; align-items: center; gap: 9px; border-bottom-color: var(--line); font: 12px var(--mono); letter-spacing: .02em; color: #dedfe3; background: var(--chrome); padding: 12px 14px; }
 .visual-heading > .ui-icon { color: var(--changed); }
-.visual-heading-note { color: var(--muted); margin-left: auto; font: 12px var(--sans); text-transform: none; letter-spacing: 0; }
 .visual-content { padding: 16px; background-image: radial-gradient(#73798066 1px, transparent 1px); background-size: 16px 16px; }
 .visual figcaption { background: #2b2d30; border-top-color: var(--line); padding: 12px 14px; font-size: 14px; line-height: 1.65; color: #d0d3d8; }
 .graph text { font-family: var(--sans); fill: var(--ink); }
@@ -353,10 +352,6 @@ h3 { font-size: 20px; letter-spacing: -.01em; }
   3%, 94% { opacity: 1; }
   100% { offset-distance: calc(100% - 25px); opacity: 0; }
 }
-.packet-guidance { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 3px 14px; background: #26282b; color: var(--muted); border-bottom: 1px solid var(--line); font-size: 13px; }
-.packet-guidance .ui-icon { color: var(--new); }
-.packet-guidance > a { margin-left: auto; min-height: 44px; display: inline-flex; align-items: center; }
-.packet-static-hint { display: none; }
 .motion-controls { position: sticky; top: 8px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; padding: 8px 12px; margin: 18px 0; border: 1px solid var(--line); border-radius: 6px; background: var(--chrome); scroll-margin-top: 12px; }
 .motion-controls fieldset { display: flex; align-items: center; gap: 10px; margin: 0; padding: 0; border: 0; min-width: 0; }
 .motion-controls legend { float: left; padding: 0; margin-right: 12px; font-size: 13px; font-weight: 600; }
@@ -391,7 +386,6 @@ h3 { font-size: 20px; letter-spacing: -.01em; }
 .behavior-step strong { display: block; font-size: 14px; font-weight: 600; color: var(--ink); }
 .behavior-step div > span { display: block; margin-top: 3px; font-size: 12px; color: var(--muted); }
 .is-wait .behavior-step-number, .is-wait strong { color: var(--risk); }
-.behavior-note { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
 /* Shared clocks keep future steps hidden even during the first cycle. */
 @keyframes behavior-window-2-1 { 0% { opacity: 1; } 50%, 100% { opacity: 0; } }
 @keyframes behavior-window-2-2 { 0% { opacity: 0; } 50% { opacity: 1; } 100% { opacity: 0; } }
@@ -448,14 +442,10 @@ h3 { font-size: 20px; letter-spacing: -.01em; }
 .scenario-graphic-note { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
 .scenario-empty-result { position: relative; display: grid; place-items: center; width: 58px; height: 60px; margin: 20px auto 8px; border: 1px dashed #a47873; color: var(--muted); border-radius: 4px; }
 .scenario-empty-cross { position: absolute; right: -7px; bottom: -9px; display: grid; place-items: center; width: 25px; height: 25px; border-radius: 50%; background: var(--risk-bg); color: var(--risk); font: 23px/1 var(--sans); }
-.scenario-story { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 18px 0; padding: 0; list-style: none; }
-.scenario-story li { display: flex; align-items: flex-start; gap: 8px; color: var(--ink); font-size: 14px; }
-.scenario-story li > span { color: var(--risk); font: 13px var(--mono); margin-top: 3px; }
 .scenario-explanation { padding: 14px; background: var(--risk-bg); border-left: 3px solid var(--risk); }
 .scenario-explanation p { margin: 0; color: var(--ink); font-size: 15px; }
 .scenario-explanation p + p { margin-top: 8px; }
 .scenario-consequence strong { color: var(--risk); }
-.scenario-note { margin: 12px 0 0; color: var(--muted); font-size: 12px; }
 .scenario-message-token { animation: scenario-message 12s linear infinite; }
 .scenario-backlog { display: flex; align-items: center; gap: 4px; height: 78px; padding-top: 10px; color: var(--changed); }
 .scenario-backlog-item { display: grid; place-items: center; width: 30px; height: 34px; background: #463628; border: 1px solid var(--changed); border-radius: 3px; animation: scenario-accumulate 12s steps(1, end) infinite; }
@@ -494,7 +484,6 @@ h3 { font-size: 20px; letter-spacing: -.01em; }
 .graph .group-heading-bg { fill: #2b2d30; }
 .graph .group-label { fill: #e2e3e5; font: 13px var(--mono); }
 .graph-mobile { display: none; }
-.problem-key { display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: 13px; color: var(--risk); background: var(--risk-bg); border-bottom: 1px solid #795052; }
 .issue-notes { margin-top: 16px; padding: 16px; border: 1px solid #b46764; border-radius: 5px; background: var(--risk-bg); }
 .issue-notes h4 { font-size: 16px; color: var(--risk); }
 .issue-notes ul { margin: 10px 0 0; padding: 0; list-style: none; }
@@ -565,6 +554,9 @@ summary:focus-visible, .section-navigation a:focus-visible { outline: 2px solid 
 .section-navigation a { display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; color: #d0d3d8; text-decoration: none; }
 .section-navigation a:hover { color: var(--new); text-decoration: underline; text-underline-offset: 5px; }
 .motion-controls { position: static; padding: 4px 10px; margin: 14px 0 0; background: var(--editor); }
+.motion-controls .motion-key { flex-basis: 100%; padding-bottom: 6px; font-size: 12px; }
+.legend-item > .ui-icon { color: var(--risk); }
+.context-grid:has(> :only-child) { grid-template-columns: minmax(0, 1fr); }
 .section, .change, .risk, #report { scroll-margin-top: 108px; }
 .connection-details { margin-top: 12px; font-size: 14px; }
 .connection-details summary { color: var(--muted); padding: 8px 0; }
@@ -586,8 +578,7 @@ summary:focus-visible, .section-navigation a:focus-visible { outline: 2px solid 
 }
 .skip-link { background: var(--chrome); }
 @media (max-width: 900px) {
-  .scenario-cards, .scenario-story { grid-template-columns: minmax(0, 1fr); }
-  .scenario-story { gap: 8px; }
+  .scenario-cards { grid-template-columns: minmax(0, 1fr); }
   .behavior-pane-desktop { display: none; }
   .behavior-pane-mobile { display: block; }
   .shell { display: block; max-width: 900px; padding: 24px; }
@@ -631,16 +622,14 @@ summary:focus-visible, .section-navigation a:focus-visible { outline: 2px solid 
   .code-excerpt { font-size: 13px; }
   .code-lineno { width: 24px; flex-basis: 24px; margin-right: 8px; padding-right: 7px; }
   .visual-content { padding: 12px; }
-  .visual-heading-note { display: none; }
   .visual-baseline .visual-heading { flex-wrap: wrap; }
-  .visual-baseline .visual-heading-note { display: block; flex-basis: 100%; margin-left: 0; }
   .comparison td[data-label]::before { color: #cbd0d6; font-size: 12px; }
   .comparison tr { border-bottom-color: var(--line); }
 }
 @media print {
   .behavior-pane-desktop { display: block; }
   .behavior-pane-mobile { display: none; }
-  .motion-controls, .packet-guidance > a, .behavior-note > a { display: none; }
+  .motion-controls { display: none; }
   .behavior-phase { opacity: 1; }
   .behavior-step-highlight { opacity: 0; }
   :root { --canvas: white; --paper: white; --ink: #262626; --muted: #555555; --line: #b7b7b7; }
@@ -660,13 +649,8 @@ summary:focus-visible, .section-navigation a:focus-visible { outline: 2px solid 
   *, *::before, *::after { animation-delay: 1ms !important; }
   .behavior-phase { opacity: 1; }
   .behavior-step-highlight { opacity: 0; }
-  :root:not(:has(#motion-play:checked, #motion-pause:checked)) .packet-loop-hint,
   :root:not(:has(#motion-play:checked)) .motion-system-normal { display: none; }
-  :root:has(#motion-system:checked) .motion-system-reduced,
-  :root:not(:has(#motion-play:checked, #motion-pause:checked)) .packet-static-hint { display: inline; }
-}
-@media print {
-  .packet-loop-hint, .packet-static-hint { display: none !important; }
+  :root:has(#motion-system:checked) .motion-system-reduced { display: inline; }
 }
 </style>
 </head>
@@ -784,6 +768,6 @@ summary:focus-visible, .section-navigation a:focus-visible { outline: 2px solid 
     <symbol id="ui-minus" viewBox="0 0 24 24"><path d="M4 12h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
   </defs>
 </svg>
-<div class="shell"><div class="workspace-bar"><div class="brand-mark"><svg class="ui-icon" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-code"/></svg><span>Change<span class="brand-muted"> explanation</span></span></div><span class="mode">Actual changes</span></div><main class="report" id="report"><header class="masthead"><h1>Document diagram playback controls</h1><p class="summary">The README now explains System, Play, and Pause, including the report-only override for reduced motion. This example explains a documentation change; it does not verify browser behavior.</p><div class="report-meta"><div class="legend" aria-label="Change status legend"><span class="legend-item status-new"><span class="swatch" aria-hidden="true"></span>New</span><span class="legend-item status-changed"><span class="swatch" aria-hidden="true"></span>Changed</span><span class="legend-item status-removed"><span class="swatch" aria-hidden="true"></span>Removed</span><span class="legend-item status-unchanged"><span class="swatch" aria-hidden="true"></span>Existing context</span></div></div></header><nav class="section-navigation" aria-label="Explanation sections"><a class="section-link" href="#report" aria-label="Back to summary">Summary</a><a class="section-link" href="#context" aria-label="Context">Context</a><a class="section-link" href="#changes" aria-label="Changes">Changes</a><a class="section-link" href="#impact" aria-label="Impact">Impact</a></nav><section class="section" id="context" aria-labelledby="heading-context"><div class="section-heading"><span class="section-number">01</span><svg class="ui-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-eye"/></svg><h2 id="heading-context">Context</h2></div><div class="context-grid"><div class="context-block"><span class="label">Problem / goal</span><p>Readers need to understand why a diagram may be static and how playback can be enabled.</p></div><div class="context-block"><span class="label">Comparison baseline</span><p>The previous README had no dedicated diagram-animation guidance.</p></div></div><div class="context-notes"><h3>Scope</h3><p>Only the new README playback paragraph is explained. Renderer changes and historical test results are outside this scope.</p><h3>Inspected comparison</h3><p><code>552990a7a0e037d4c7b1d2a7cd533d28ae456e64</code> → <code>e7a4f99e24cd1e4e1daa228cc84c21d0bee04a05</code><span class="comparison-date">Inspected 2026-10-03</span></p><h3>Included</h3><ul><li>README.md:33 at the pinned historical revision</li></ul><h3>Excluded</h3><ul><li>Current working tree changes</li><li>Renderer implementation and browser verification</li></ul></div></section><section class="section" id="changes" aria-labelledby="heading-changes"><div class="section-heading"><span class="section-number">02</span><svg class="ui-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-diff"/></svg><h2 id="heading-changes">Changes</h2></div><article class="change status-new" id="change-playback-docs"><div class="change-heading"><span class="change-id">01</span><h3>Explain the three playback options</h3><span class="badge status-new">New</span></div><p class="change-description">System follows the motion preference; Play enables motion for the report; Pause freezes playback.</p><p class="why"><strong>Why.</strong> A static diagram can be expected behavior under reduced motion.</p><div class="evidence"><strong>Evidence / verification</strong><ul><li><a href="https://github.com/Nielk74/ouat/blob/e7a4f99e24cd1e4e1daa228cc84c21d0bee04a05/README.md#L33">Read the inspected README paragraph</a><span class="source-location"><code>README.md:33</code><span class="source-revision">@ e7a4f99e24cd1e4e1daa228cc84c21d0bee04a05</span></span><p>Inspected with git show at the pinned revision. The statements describe the documented controls, not independently verified runtime behavior.</p></li></ul></div></article></section><section class="section" id="impact" aria-labelledby="heading-impact"><div class="section-heading"><span class="section-number">03</span><svg class="ui-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-impact"/></svg><h2 id="heading-impact">Impact</h2></div><div class="impact-item"><div class="item-meta"><a href="#change-playback-docs">Explain the three playback options</a><span class="basis">Observed</span></div><p>The documentation now describes the controls and the reduced-motion override.</p></div><div class="impact-item"><div class="item-meta"><a href="#change-playback-docs">Explain the three playback options</a><span class="basis">Inferred</span></div><p>The guidance may help readers distinguish intentional static playback from a malfunction; no usability measurement is claimed.</p></div></section><footer class="footer"><span>Actual changes · impact labels distinguish evidence from predictions.</span><span>Change explanation / v1</span></footer></main></div>
+<div class="shell"><div class="workspace-bar"><div class="brand-mark"><svg class="ui-icon" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-code"/></svg><span>Change<span class="brand-muted"> explanation</span></span></div><span class="mode">Actual changes</span></div><main class="report" id="report"><header class="masthead"><h1>Document diagram playback controls</h1><p class="summary">The README adds guidance for System, Play, and Pause.</p><div class="report-meta"><div class="legend" aria-label="Change status legend"><span class="legend-item status-new"><span class="swatch" aria-hidden="true"></span>New</span><span class="legend-item status-changed"><span class="swatch" aria-hidden="true"></span>Changed</span><span class="legend-item status-removed"><span class="swatch" aria-hidden="true"></span>Removed</span><span class="legend-item status-unchanged"><span class="swatch" aria-hidden="true"></span>Existing context</span></div></div></header><nav class="section-navigation" aria-label="Explanation sections"><a class="section-link" href="#report" aria-label="Back to summary">Summary</a><a class="section-link" href="#context" aria-label="Context">Context</a><a class="section-link" href="#changes" aria-label="Changes">Changes</a><a class="section-link" href="#impact" aria-label="Impact">Impact</a></nav><section class="section" id="context" aria-labelledby="heading-context"><div class="section-heading"><span class="section-number">01</span><svg class="ui-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-eye"/></svg><h2 id="heading-context">Context</h2></div><div class="context-grid"><div class="context-block"><span class="label">Baseline</span><p>The previous README had no playback guidance.</p></div></div><div class="context-notes"><h3>Scope</h3><p>README playback paragraph only.</p><h3>Inspected comparison</h3><p><code>552990a7a0e037d4c7b1d2a7cd533d28ae456e64</code> → <code>e7a4f99e24cd1e4e1daa228cc84c21d0bee04a05</code><span class="comparison-date">Inspected 2026-10-03</span></p><h3>Included</h3><ul><li>README.md:33 at the pinned revision</li></ul><h3>Excluded</h3><ul><li>Current working tree changes</li><li>Renderer implementation and browser verification</li></ul></div></section><section class="section" id="changes" aria-labelledby="heading-changes"><div class="section-heading"><span class="section-number">02</span><svg class="ui-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-diff"/></svg><h2 id="heading-changes">Changes</h2></div><article class="change status-new" id="change-playback-docs"><div class="change-heading"><span class="change-id">01</span><h3>Explain the three playback options</h3><span class="badge status-new">New</span></div><p class="change-description">System follows the motion preference; Play enables motion for the report; Pause freezes playback.</p><div class="evidence"><strong>Evidence</strong><ul><li><a href="https://github.com/Nielk74/ouat/blob/e7a4f99e24cd1e4e1daa228cc84c21d0bee04a05/README.md#L33">Read the inspected README paragraph</a><span class="source-location"><code>README.md:33</code><span class="source-revision">@ e7a4f99e24cd1e4e1daa228cc84c21d0bee04a05</span></span><p>Inspected with git show at the pinned revision; browser behavior is unverified.</p></li></ul></div></article></section><section class="section" id="impact" aria-labelledby="heading-impact"><div class="section-heading"><span class="section-number">03</span><svg class="ui-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-impact"/></svg><h2 id="heading-impact">Impact</h2></div><div class="impact-item"><div class="item-meta"><a href="#change-playback-docs">Explain the three playback options</a><span class="basis">Inferred</span></div><p>May help readers recognize intentional static playback.</p></div></section><footer class="footer">Change explanation / v1</footer></main></div>
 </body>
 </html>

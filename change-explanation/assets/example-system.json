@@ -2,23 +2,20 @@
   "version": 1,
   "mode": "plan",
   "title": "Move scheduled exports into worker processes",
-  "summary": "Move scheduled export execution into independently deployed consumers. The API returns a job handle; safe redelivery and consumer health become operational requirements.",
+  "summary": "Run scheduled exports in independent consumers; return a queued job handle.",
   "context": {
-    "problem": "Export work runs inside the API request process. That request stays open until the export finishes; stopping the API process interrupts the in-flight job.",
-    "baseline": "Illustrative baseline: every five minutes, cron calls the API. The API awaits buildExport(), stores the result, then replies done. There is no queued handoff or independent consumer.",
-    "scope": "One hypothetical solution. The paths, before/after excerpts, and infrastructure below are illustrative, not inspected project files.",
+    "baseline": "Every five minutes, cron invokes the API, which builds and saves the export before replying.",
+    "scope": "Hypothetical proposal; files, snippets, infrastructure, and products are illustrative.",
     "constraints": [
-      "Accept a job only after durable queue publication; acknowledge it after storing its result.",
-      "Bound concurrency and preserve the job ID across delivery attempts."
+      "Publish durably before accepting; acknowledge after saving.",
+      "Bound concurrency and preserve job IDs across deliveries."
     ],
     "assumptions": [
-      "The broker supports durable delivery and the existing results table has a unique job ID.",
-      "The illustrative consume wrapper acknowledges only after its callback succeeds.",
-      "RabbitMQ, PostgreSQL, and TeamCity are illustrative product choices here, not findings about this project."
+      "The broker supports durable delivery and results have unique job IDs.",
+      "The consume wrapper acknowledges after its callback succeeds."
     ],
     "visual": {
       "template": "communication",
-      "caption": "The diagram shows the normal completion path: cron calls the API, the export runs in that same process, then its result is stored. The failure scenario above stops the API before completion: the in-flight export is interrupted and this attempt stores no completed result. This does not delete previous results, rule out a later retry, or prove CPU saturation.",
       "groups": [
         {
           "id": "api-runtime",
@@ -41,7 +38,7 @@
           "group": "api-runtime",
           "status": "unchanged",
           "meta": "await buildExport()",
-          "issue": "The response cannot finish until buildExport() completes. Long exports tie request duration to job duration; there is no asynchronous job handoff."
+          "issue": "The request waits for the export to finish."
         },
         {
           "id": "export",
@@ -74,7 +71,6 @@
           "to": "export",
           "label": "Run export inside this API process",
           "status": "unchanged",
-          "issue": "The export shares the API process lifetime. If that process stops before completion, the in-flight execution is interrupted; no separate consumer can continue it.",
           "shortLabel": "Run export inside"
         },
         {
@@ -91,9 +87,9 @@
         "from": "request",
         "at": "export",
         "to": "db",
-        "condition": "The API process stops while an export is still running.",
-        "cause": "The request and export share the same process lifetime. There is no durable handoff to an independent consumer.",
-        "consequence": "The unfinished export is interrupted: this attempt stores no completed result, and its request cannot return success. A later retry is not ruled out."
+        "condition": "The API process stops mid-export.",
+        "cause": "Request and export share a process without a durable handoff.",
+        "consequence": "This attempt stores no completed result or successful response; previous results remain and a later retry is possible."
       }
     }
   },
@@ -102,19 +98,16 @@
       "id": "publish",
       "title": "Publish a job instead of building inline",
       "status": "changed",
-      "description": "The producer returns a queued job handle. Export execution moves to a consumer.",
-      "why": "Keep long-running work outside the API request lifecycle.",
+      "description": "Publish a durable job with a stable ID before returning its queued handle.",
       "code": {
         "file": "src/api/exports.ts",
         "symbol": "enqueueExport()",
         "language": "typescript",
-        "summary": "Replace one inline call with durable publication; completion becomes asynchronous.",
         "before": "await buildExport(accountId);\nreturn { status: \"done\" };",
         "after": "const job = { id: jobId, accountId };\nawait exportQueue.publish(job);\nreturn { status: \"queued\", jobId };"
       },
       "visual": {
         "template": "communication",
-        "caption": "Only acceptance happens in the API. The message carries the stable job ID; the queue separates producer and consumer lifecycles.",
         "nodes": [
           {
             "id": "api",
@@ -178,18 +171,15 @@
       "id": "schedule",
       "title": "Put routing and concurrency in configuration",
       "status": "changed",
-      "description": "Cron keeps its schedule while queue selection and worker count become explicit settings.",
-      "why": "Let operations adjust execution settings without editing the producer logic.",
+      "description": "Configure queue routing and worker count; preserve the five-minute schedule.",
       "code": {
         "file": "config/exports.yml",
         "language": "yaml",
-        "summary": "Preserve the existing cadence; add the queue name and a bounded worker count.",
         "before": "schedule: \"*/5 * * * *\"",
         "after": "schedule: \"*/5 * * * *\"\nqueue: \"exports.ready\"\nworkers: 2"
       },
       "visual": {
         "template": "flow",
-        "caption": "Config controls the schedule and routing. Cron still invokes the producer; the selected queue receives the job.",
         "nodes": [
           {
             "id": "config",
@@ -260,25 +250,22 @@
       "id": "pool",
       "title": "Consume work in a bounded thread pool",
       "status": "new",
-      "description": "A separate consumer process starts two worker threads and persists results by job ID.",
-      "why": "Isolate execution from the API and cap simultaneous export work.",
+      "description": "Run two worker threads per host; upsert results before acknowledgement.",
       "code": {
         "file": "src/workers/exports.ts",
         "symbol": "startConsumer()",
         "language": "typescript",
-        "summary": "Start the pool once; run each delivered job in a worker thread and upsert its result before acknowledging.",
         "before": "",
         "after": "const pool = new WorkerPool({ size: config.workers });\nawait consume(async job => {\n  const artifact = await pool.run(job);\n  await results.upsert(job.id, artifact);\n});"
       },
       "visual": {
         "template": "communication",
-        "caption": "The boundary shows ownership: one consumer process and two threads share a worker host. Results are persisted outside that host before the process acknowledges delivery.",
         "groups": [
           {
             "id": "host",
             "label": "export-worker-01",
             "kind": "server",
-            "detail": "One worker host, isolated from the API server."
+            "detail": "Separate from the API host."
           }
         ],
         "nodes": [
@@ -362,18 +349,15 @@
       "id": "deploy",
       "title": "Deploy the consumer independently",
       "status": "changed",
-      "description": "The CI/CD agent ships the API and export worker as separate services using the same queue binding.",
-      "why": "Restart or scale consumers without tying their lifecycle to HTTP serving.",
+      "description": "Deploy API and worker independently with the same queue binding.",
       "code": {
         "file": "ci/deploy.ts",
         "language": "typescript",
-        "summary": "Add one independently managed worker service to the deployment.",
         "before": "await deploy(\"api\");",
         "after": "await deploy(\"api\");\nawait deploy(\"export-worker\", { queue: \"exports.ready\" });"
       },
       "visual": {
         "template": "dependency-map",
-        "caption": "The CI/CD agent deploys a worker host with a running consumer. Config supplies its queue binding; the existing API deployment remains in place.",
         "nodes": [
           {
             "id": "ci",
@@ -435,13 +419,13 @@
   "manualChanges": [
     {
       "change": "publish",
-      "action": "Provision a durable exports.ready queue and producer/consumer access.",
+      "action": "Provision exports.ready with durable delivery and producer/consumer access.",
       "verification": "A published test job survives a consumer restart."
     },
     {
       "change": "deploy",
-      "action": "Configure the worker's queue binding and confirm callers accept a queued job handle.",
-      "prerequisite": "Queue access and the job-ID uniqueness constraint are confirmed.",
+      "action": "Confirm callers accept queued handles and configure the worker binding.",
+      "prerequisite": "Confirm queue access and unique job IDs.",
       "verification": "The consumer starts, completes a job, and persists its result before acknowledging."
     }
   ],
@@ -449,22 +433,7 @@
     {
       "change": "publish",
       "basis": "expected",
-      "description": "The API returns a queued job handle; completion becomes eventual. Callers must use the job ID to inspect the result."
-    },
-    {
-      "change": "schedule",
-      "basis": "expected",
-      "description": "The cadence stays the same. Queue routing and concurrency become operational settings."
-    },
-    {
-      "change": "pool",
-      "basis": "expected",
-      "description": "At most two jobs execute per worker host. Re-delivered jobs update the same result key; execution still consumes resources."
-    },
-    {
-      "change": "deploy",
-      "basis": "expected",
-      "description": "The worker can restart independently of the API. Delivery depends on a healthy consumer and a correctly configured broker binding."
+      "description": "Callers need the job ID to retrieve eventual results."
     }
   ],
   "risks": [
@@ -472,17 +441,17 @@
       "change": "pool",
       "title": "A job can be delivered more than once",
       "severity": "important",
-      "condition": "A consumer stops after saving a result but before acknowledging delivery.",
-      "consequence": "The job can run again, consuming extra resources or repeating other side effects.",
-      "mitigation": "Keep the stable job ID, upsert its result, and make any additional effects idempotent."
+      "condition": "A consumer stops after saving but before acknowledging.",
+      "consequence": "Redelivery can repeat work and side effects.",
+      "mitigation": "Preserve job IDs, upsert results, and make other effects idempotent."
     },
     {
       "change": "deploy",
       "title": "Jobs accumulate without a healthy consumer",
       "severity": "important",
       "condition": "The worker is stopped or its queue binding is wrong.",
-      "consequence": "The API can accept jobs while completion is delayed.",
-      "mitigation": "Verify consumption after deployment and monitor queue age and worker health."
+      "consequence": "Accepted jobs wait for completion.",
+      "mitigation": "Verify consumption after deployment; monitor queue age and worker health."
     }
   ]
 }
