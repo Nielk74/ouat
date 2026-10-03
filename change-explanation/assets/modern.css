@@ -277,6 +277,30 @@ h3 { font-size: 20px; letter-spacing: -.01em; }
 .scenario-item-3 { animation-name: scenario-accumulate-3; }
 .scenario-item-4 { animation-name: scenario-accumulate-4; }
 .scenario-bottleneck .scenario-progress-fill { animation-name: scenario-slow-progress; transform: scaleX(.8); }
+/* Each story shares one clock. The complete outcome remains visible without motion. */
+.story-state-pair { display: grid; }
+.story-state-pair > .story-phase { grid-area: 1 / 1; min-width: 0; }
+.story-initial { opacity: 0; animation: story-initial 12s steps(1, end) infinite; }
+.story-middle { opacity: 0; animation: story-middle 12s steps(1, end) infinite; }
+.story-outcome { opacity: 1; animation: story-outcome 12s steps(1, end) infinite; }
+.scenario-story-art { margin-top: 14px; color: var(--ink); }
+.scenario-story-art .story-phase { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; min-height: 84px; }
+.story-value { font: 650 24px/1.2 var(--sans); font-variant-numeric: tabular-nums; }
+.story-record { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-width: 92px; max-width: 100%; padding: 10px 12px; border: 1px solid #858a92; border-radius: 5px; background: var(--editor); color: var(--ink); font-size: 13px; text-align: center; overflow-wrap: anywhere; }
+.story-clock { display: inline-flex; flex-direction: column; align-items: center; gap: 6px; color: var(--unchanged); }
+.story-clock svg { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.scenario-timeout .scenario-card-at, .scenario-out-of-order .scenario-card-at, .scenario-partial-failure .scenario-card-at { border-color: #73777f; background: var(--editor); }
+.scenario-timeout .scenario-card-from, .scenario-out-of-order .scenario-card-to, .scenario-partial-failure .scenario-card-to { border-color: #c78278; background: #302627; }
+.story-clock.is-expired, .story-step.is-failed { color: var(--risk); }
+.story-query { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #858a92; border-radius: 5px; background: var(--editor); }
+.story-result.is-stale { border-color: var(--risk); color: var(--risk); }
+.story-step { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--ink); font-size: 13px; text-align: center; }
+.story-progress-track { height: 9px; margin-top: 10px; overflow: hidden; border: 1px solid #858a92; border-radius: 3px; background: var(--editor); }
+.story-progress-fill { display: block; width: 100%; height: 100%; background: var(--unchanged); transform: scaleX(1); transform-origin: left center; animation: story-progress-active 12s linear infinite; }
+@keyframes story-initial { 0% { opacity: 1; } 20%, 100% { opacity: 0; } }
+@keyframes story-middle { 0% { opacity: 0; } 20% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes story-outcome { 0%, 20% { opacity: 0; } 50%, 100% { opacity: 1; } }
+@keyframes story-progress-active { 0% { transform: scaleX(.05); } 20% { transform: scaleX(.4); } 50%, 100% { transform: scaleX(1); } }
 @keyframes scenario-before { 0% { opacity: 1; } 50%, 100% { opacity: 0; } }
 @keyframes scenario-after { 0% { opacity: 0; } 50%, 100% { opacity: 1; } }
 @keyframes scenario-progress { 0%, 10% { transform: scaleX(0); } 50%, 100% { transform: scaleX(.55); } }

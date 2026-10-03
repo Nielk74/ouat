@@ -85,8 +85,16 @@ From/at/to are distinct existing nodes. The graph needs from→at and either fro
 | `message-loss` | This delivery does not reach the receiver |
 | `bottleneck` | Arrivals outpace processing and backlog grows |
 | `saturation` | Finite capacity is full and new work waits |
+| `timeout` | Caller stops waiting while uncancelled work continues and finishes |
+| `duplicate-effect` | A lost acknowledgement causes the same operation to be applied twice |
+| `out-of-order` | An earlier response arrives last and replaces the newer result |
+| `partial-failure` | A later step fails while the first effect remains saved |
 
 Interrupted-work requires from/at in the same explicit process group. Message-loss requires incoming/downstream message transports. Scenarios cannot share a graph with sequence or independently animated elements. Label hypothetical conditions and illustrative capacities; scope missing results or delivery to the illustrated attempt. Verify the outcome without motion as well as during playback.
+
+Duplicate-effect requires an at→from acknowledgement edge with an `issue`; the operation itself succeeds. Optional `subject` names the repeated operation. Out-of-order may specify distinct `earlier`/`later` values together (for example, search terms `ca`/`cat`). Timeout illustrates continued work and a late result, not automatic cancellation. Partial-failure preserves the earlier effect rather than implying rollback. These four patterns show an initial state, an intermediate event, and a held outcome.
+
+Use existing flows for lock cycles, repeated invalid messages, mismatched configuration, and premature acknowledgements. Keep the causal order and concrete values visible. The explorer's Problems section contains copyable examples; it is separate from normal reports.
 
 ### Ordered behavior
 

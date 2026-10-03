@@ -22,6 +22,13 @@
 .demo-description { color: var(--muted); margin: 8px 0 0; max-width: 90ch; font-size: 15px; }
 .showcase-demo .visual { margin-top: 12px; border: 0; border-radius: 0; }
 .showcase-demo > .visual > .visual-heading { display: none; }
+.problem-example { border-bottom: 1px solid var(--line); scroll-margin-top: 142px; }
+.problem-example > summary { padding: 16px 0; min-height: 48px; color: var(--ink); font-size: 16px; font-weight: 550; cursor: pointer; }
+.problem-example > summary::marker { color: var(--muted); }
+.problem-example > summary:hover { color: white; }
+.problem-example > summary:focus-visible { outline: 2px solid var(--unchanged); outline-offset: 3px; border-radius: 2px; }
+.problem-example[open] > summary { padding-bottom: 8px; }
+.problem-example > .showcase-demo { margin: 0; padding: 8px 0 18px; border-bottom: 0; }
 .showcase button { font: 14px var(--sans); color: var(--ink); background: var(--chrome); border: 1px solid #818790; border-radius: 4px; padding: 9px 13px; cursor: pointer; min-height: 40px; }
 .showcase button:hover { background: #41454b; }
 .showcase button:disabled { color: var(--muted); cursor: default; opacity: .7; }
@@ -75,3 +82,4 @@
   .showcase-report-example { padding: 12px; }
 }
 @media print { .showcase-toolbar, .demo-replay, .icon-search-controls, .demo-recipe { display: none; } .showcase-demo { break-inside: avoid; } }
+@media print { .problem-example > *, .problem-example::details-content { display: block; content-visibility: visible; } }

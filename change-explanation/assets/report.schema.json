@@ -104,10 +104,12 @@
       "type": "object", "additionalProperties": false,
       "required": ["template", "from", "at", "to", "condition", "cause", "consequence"],
       "properties": {
-        "template": {"type": "string", "enum": ["interrupted-work", "message-loss", "bottleneck", "saturation"]},
+        "template": {"type": "string", "enum": ["interrupted-work", "message-loss", "bottleneck", "saturation", "timeout", "duplicate-effect", "out-of-order", "partial-failure"]},
         "from": {"$ref": "#/$defs/id"}, "at": {"$ref": "#/$defs/id"}, "to": {"$ref": "#/$defs/id"},
         "condition": {"$ref": "#/$defs/text"}, "cause": {"$ref": "#/$defs/text"},
-        "consequence": {"$ref": "#/$defs/text"}
+        "consequence": {"$ref": "#/$defs/text"},
+        "subject": {"$ref": "#/$defs/text"},
+        "earlier": {"$ref": "#/$defs/text"}, "later": {"$ref": "#/$defs/text"}
       }
     },
     "code": {

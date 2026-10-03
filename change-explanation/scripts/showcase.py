@@ -7,6 +7,7 @@ import re
 import xml.etree.ElementTree as ET
 
 import brands
+from problem_examples import problem_demos
 
 
 def transfer(transport, animate=False):
@@ -100,7 +101,10 @@ def visual_demos(renderer):
         if shared:
             visual["groups"] = [{"id": "runtime", "label": "API process", "kind": "process"}]
             visual["nodes"][0]["group"] = visual["nodes"][1]["group"] = "runtime"
-        add("scenario-" + template, "motion", title, description, visual)
+        questions = {"interrupted-work": "Why did a restart interrupt this export?", "message-loss": "Why was a sent message never received?", "bottleneck": "Why does the queue keep growing?", "saturation": "Why does new work wait when workers are busy?"}
+        add("scenario-" + template, "problems", questions[template], "", visual)
+    for example in problem_demos():
+        demos.append({**example, "group": "problems", "description": ""})
     schema = json.loads((renderer.ASSETS / "report.schema.json").read_text(encoding="utf-8"))
     for transport in schema["$defs"]["edge"]["properties"]["transport"]["enum"]:
         add("transport-" + transport, "connections", transport.capitalize(), "", transfer(transport))
@@ -156,21 +160,28 @@ def render_showcase(renderer):
         icon_card("brand-" + brand, item["title"], item["category"], r.icon("generic", 52, brand), f'"brand": "{brand}"', extra)
 
     controls = r.motion_controls([demo["visual"] for demo in demos], showcase=True)
-    sections = (("layouts", "Layouts"), ("motion", "Motion"), ("connections", "Connections"), ("icons", "Icons"), ("elements", "Elements"))
+    sections = (("layouts", "Layouts"), ("motion", "Motion"), ("problems", "Problems"), ("connections", "Connections"), ("icons", "Icons"), ("elements", "Elements"))
     nav = '<a href="#report">Overview</a>' + ''.join(f'<a href="#{identifier}">{escape(title)}</a>' for identifier, title in sections)
     body = (r.ASSETS / "entities.svg").read_text(encoding="utf-8") + ui_source + brands.sprite(brands.BRANDS)
     body += '<main class="showcase" id="report"><header class="showcase-hero"><h1>Change Explanation</h1><p class="summary">Explore layouts, motion and icons. Open a recipe to reuse a pattern.</p><p class="showcase-note">Illustrative examples.</p><div class="legend" aria-label="Change status legend">'
     body += ''.join(f'<span class="legend-item status-{status}"><span class="swatch" aria-hidden="true"></span>{escape(title)}</span>' for status, title in r.LABELS.items())
     body += '</div></header>'
     body += f'<div class="showcase-toolbar"><nav class="section-navigation" aria-label="Showcase sections">{nav}</nav>{controls}</div>'
-    for identifier, title in sections[:3]:
+    for identifier, title in sections[:4]:
         body += f'<section class="showcase-section" id="{identifier}"><h2>{escape(title)}</h2>'
         for demo in (demo for demo in demos if demo["group"] == identifier):
-            replay = '<button type="button" class="demo-replay">Replay this demo</button>' if identifier == "motion" else ''
-            body += f'<article class="showcase-demo" id="{demo["id"]}"><div class="demo-heading"><h3>{escape(demo["title"])}</h3>{replay}</div>'
+            visual = demo["visual"]
+            moving = identifier == "motion" or visual.get("scenario") or visual.get("sequence")
+            replay = '<button type="button" class="demo-replay">Replay this demo</button>' if moving else ''
+            if identifier == "problems":
+                body += f'<details class="problem-example"><summary id="question-{demo["id"]}">{escape(demo["title"])}</summary><article class="showcase-demo" id="{demo["id"]}" aria-labelledby="question-{demo["id"]}"><div class="demo-heading">{replay}</div>'
+            else:
+                body += f'<article class="showcase-demo" id="{demo["id"]}"><div class="demo-heading"><h3>{escape(demo["title"])}</h3>{replay}</div>'
             if demo["description"]:
                 body += f'<p class="demo-description">{escape(demo["description"])}</p>'
             body += r.render_visual(demo["visual"], "review", "showcase-" + demo["id"]) + recipe(demo["visual"]) + '</article>'
+            if identifier == "problems":
+                body += '</details>'
         body += '</section>'
     categories = ["Generic components", "Renderer glyphs"] + list(dict.fromkeys(item["category"] for item in brands.CATALOG["icons"]))
     options = ''.join(f'<option>{escape(category)}</option>' for category in categories)

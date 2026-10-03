@@ -38,7 +38,7 @@ The proposals are hypothetical. The documentation review does not verify runtime
 
 ![Interactive showcase preview](docs/showcase-preview.png)
 
-Open [the showcase](docs/showcase.html) locally to explore layouts, icons, connection styles, and motion, with searchable examples and JSON recipes. On GitHub, download the HTML first.
+Open [the showcase](docs/showcase.html) locally to explore problem stories, layouts, icons, and motion. Expand a question to see its mechanism and JSON recipe. On GitHub, download the HTML first.
 
 ```sh
 python change-explanation/scripts/report.py showcase --output docs/showcase.html --force

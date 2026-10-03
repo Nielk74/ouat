@@ -72,6 +72,8 @@ class ShowcaseTests(unittest.TestCase):
         self.assertIn('id="icon-search"', html)
         self.assertIn('id="motion-pause"', html)
         self.assertIn("Replay this demo", html)
+        self.assertEqual(html.count('class="problem-example"'), 13)
+        self.assertNotIn('class="problem-example" open', html)
 
     def test_report_element_example_is_valid_and_gallery_stays_out_of_reports(self):
         sample = self.showcase_module().element_example()

@@ -38,6 +38,19 @@
   reduced.addEventListener('change', syncControls);
   syncControls();
 
+  const revealExample = () => {
+    let identifier;
+    try { identifier = decodeURIComponent(location.hash.slice(1)); } catch { return; }
+    const target = document.getElementById(identifier);
+    const disclosure = target?.closest('.problem-example');
+    if (disclosure) {
+      disclosure.open = true;
+      requestAnimationFrame(() => disclosure.scrollIntoView({block:'start'}));
+    }
+  };
+  window.addEventListener('hashchange', revealExample);
+  revealExample();
+
   const search = document.getElementById('icon-search');
   const category = document.getElementById('icon-category');
   const cards = [...document.querySelectorAll('[data-icon-id]')];

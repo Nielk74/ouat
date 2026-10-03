@@ -187,6 +187,10 @@ def check_visual(visual, path):
                 diagnostics.append(diagnostic(scenario_path + ".to", "The outcome is not connected to this workflow.", "Select an existing downstream result, or use a focused static explanation."))
             if scenario["template"] == "message-loss" and (not incoming or not outgoing or any(edge.get("transport") != "message" for edge in incoming+outgoing)):
                 diagnostics.append(diagnostic(scenario_path + ".template", "Message loss requires message-delivery relationships.", "Use message-loss for actual message delivery, not a synchronous request or unfinished local execution."))
+            if scenario["template"] == "duplicate-effect" and not any(edge["from"] == scenario["at"] and edge["to"] == scenario["from"] and "issue" in edge for edge in visual["edges"]):
+                diagnostics.append(diagnostic(scenario_path + ".template", "Duplicate-effect needs the failed acknowledgement path.", "Show the reply from the affected component to the caller with an issue explaining why it is lost; the original operation reaches its destination."))
+            if ("earlier" in scenario) != ("later" in scenario) or ("earlier" in scenario and scenario["earlier"] == scenario["later"]):
+                diagnostics.append(diagnostic(scenario_path, "Ordering examples need two distinct values.", "Supply both earlier and later, or omit both for generic labels."))
             if scenario["template"] == "interrupted-work" and scenario["from"] in nodes and scenario["at"] in nodes:
                 owner = nodes[scenario["at"]].get("group")
                 if not owner or nodes[scenario["from"]].get("group") != owner or not any(group["id"] == owner and group["kind"] == "process" for group in visual.get("groups", [])):
@@ -460,7 +464,75 @@ SCENARIOS = {
         "normal": ("Work arriving", "Capacity filling", "Existing work is active"),
         "failed": ("New work waits", "No free slot", "New work cannot complete yet"),
     },
+    "timeout": {
+        "title": "The caller stops waiting; work continues",
+        "normal": ("Waiting", "Work in progress", "No result yet"),
+        "middle": ("Caller timed out", "Work still running", "No result yet"),
+        "failed": ("Caller timed out", "Work completed", "Result ready"),
+    },
+    "duplicate-effect": {
+        "title": "A lost reply leads to the same operation twice",
+        "normal": ("Request sent", "Applying the operation", "No effect yet"),
+        "middle": ("Reply lost", "First operation applied", "One effect"),
+        "failed": ("Same operation retried", "Applied again", "Two effects"),
+    },
+    "out-of-order": {
+        "title": "An older response replaces the newer one",
+        "normal": ("Two requests sent", "Both in progress", "Waiting for results"),
+        "middle": ("Latest input unchanged", "Newer request finishes first", "Newer results displayed"),
+        "failed": ("Latest input unchanged", "Older request finishes last", "Older results displayed"),
+    },
+    "partial-failure": {
+        "title": "The next step fails; the first effect remains",
+        "normal": ("Workflow started", "First step in progress", "Next step pending"),
+        "middle": ("First step finished", "First effect saved", "Next step in progress"),
+        "failed": ("Workflow partly complete", "First effect remains", "Next step failed"),
+    },
 }
+
+
+def story_phases(values):
+    return ''.join(f'<span class="story-phase story-{phase}" data-story-phase="{phase}">{value}</span>' for phase, value in zip(("initial", "middle", "outcome"), values))
+
+
+def story_artwork(scenario, role):
+    """Distinct causal states, with the held outcome as the static default."""
+    template = scenario["template"]
+    subject = text(scenario.get("subject", "Same operation"))
+    earlier, later = text(scenario.get("earlier", "Older")), text(scenario.get("later", "Newer"))
+    value = lambda word, extra='': f'<span class="story-value {extra}">{word}</span>'
+    record = lambda word, extra='': f'<span class="story-record {extra}">{word}</span>'
+    if template == "timeout":
+        if role == "at":
+            return f'<div class="scenario-story-art" aria-hidden="true">{ui_icon("code", 36)}<div class="story-progress-track"><span class="story-progress-fill"></span></div></div>'
+        if role == "from":
+            clock = '<svg width="38" height="38" viewBox="0 0 42 42"><circle cx="21" cy="21" r="17"/><path d="M21 10v11l8 4"/></svg>'
+            values = (f'<span class="story-clock">{clock}</span>', '<span class="story-clock is-expired">'+value('Wait ended')+'</span>', '<span class="story-clock is-expired">'+value('Wait ended')+'</span>')
+        else:
+            values = (value('…'), value('…'), record(ui_icon("file", 32) + ' Ready'))
+    elif template == "duplicate-effect":
+        if role == "from":
+            values = (record(subject), record('Reply lost ×'), record('Retry: '+subject))
+        elif role == "at":
+            values = (record(subject), record('Applied: '+subject), record('Again: '+subject))
+        else:
+            receipt = record(subject, 'story-receipt')
+            values = (value('0'), receipt, receipt + receipt)
+    elif template == "out-of-order":
+        if role == "from":
+            values = (record(earlier+' → '+later, 'story-query'), record('Input: '+later, 'story-query'), record('Input: '+later, 'story-query'))
+        elif role == "at":
+            values = (record(earlier+' / '+later), record(later+' first'), record(earlier+' last'))
+        else:
+            values = (value('…'), record(later, 'story-result'), record(earlier, 'story-result is-stale'))
+    else:  # partial-failure
+        if role == "from":
+            values = (value('Start'), value('Step 1 done'), value('Partly done'))
+        elif role == "at":
+            values = (record('Pending', 'story-step'), record('Saved ✓', 'story-step'), record('Still saved ✓', 'story-step'))
+        else:
+            values = (record('Pending', 'story-step'), record('Working', 'story-step'), record('Failed ×', 'story-step is-failed'))
+    return '<div class="scenario-story-art" aria-hidden="true"><div class="story-state-pair">'+story_phases(values)+'</div></div>'
 
 
 def render_scenario(visual, mode):
@@ -476,7 +548,14 @@ def render_scenario(visual, mode):
     pieces.append('<div class="scenario-cards">')
     for index, role in enumerate(("from", "at", "to")):
         node = nodes[scenario[role]]
-        pieces.append(f'<div class="scenario-card scenario-card-{role}" data-node-ref="{node["id"]}"><div class="scenario-component">{icon(node.get("kind", "generic"), 36, node.get("brand"))}<div><span>{text(KINDS[node.get("kind", "generic")])}</span><h5>{text(node["label"])}</h5></div></div>{badge(node["status"], mode)}')
+        kind = node.get("kind", "generic")
+        kind_label = f'<span>{text(KINDS[kind])}</span>' if useful_kind(kind, node["label"]) else ''
+        pieces.append(f'<div class="scenario-card scenario-card-{role}" data-node-ref="{node["id"]}"><div class="scenario-component">{icon(kind, 36, node.get("brand"))}<div>{kind_label}<h5>{text(node["label"])}</h5></div></div>{badge(node["status"], mode)}')
+        if "middle" in pattern:
+            pieces.append(story_artwork(scenario, role))
+            values = [text(pattern[key][index]) for key in ("normal", "middle", "failed")]
+            pieces.append('<div class="story-state-pair scenario-component-state" aria-hidden="true">'+story_phases(values)+'</div></div>')
+            continue
         if role == "at":
             if template in ("interrupted-work", "message-loss"):
                 glyph = "message" if template == "message-loss" else "file"

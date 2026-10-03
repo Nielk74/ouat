@@ -83,6 +83,27 @@ try {
       await sleep(50);
     }
     if (!ready) throw new Error('Report did not finish loading.');
+    const problemDisclosures = await evaluate(`(async () => {
+      const details = [...document.querySelectorAll('.problem-example')];
+      if (!details.length) return null;
+      const failures = [], frame = () => new Promise(done => requestAnimationFrame(done));
+      if (details.some(node => node.open)) failures.push('Problem examples should start collapsed.');
+      details[0].querySelector('summary').click();
+      await frame();
+      if (!details[0].open || !details[0].querySelector('article').getClientRects().length) failures.push('Opening a question does not reveal its illustration.');
+      details[0].querySelector('summary').click();
+      location.hash = '#problem-out-of-order';
+      await new Promise(done => setTimeout(done, 80));
+      const linked = document.getElementById('problem-out-of-order');
+      if (!linked?.closest('details').open) failures.push('A direct link does not open its problem example.');
+      location.hash = '';
+      // Expand every example so layout, animation and print checks cover them all.
+      details.forEach(node => node.open = true);
+      await frame(); await frame();
+      window.scrollTo(0,0);
+      return {checked: details.length, failures};
+    })()`);
+    if (problemDisclosures?.failures.length) throw new Error('Problem discovery failed: ' + JSON.stringify(problemDisclosures.failures));
     const nativeMotion = await evaluate(`({
       reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
       animations: document.getAnimations().length,
@@ -373,9 +394,9 @@ try {
       return { checked, failures: [...new Set(failures)] };
     })()`);
     if (diagramRouting.failures.length) throw new Error('Unreadable diagram routing: ' + JSON.stringify(diagramRouting.failures));
-    const permitted = new Set(['highlight-outline', 'connection-flow', 'packet-transfer', 'behavior-travel', 'behavior-waiting', 'scenario-before', 'scenario-after', 'scenario-progress', 'scenario-message', 'scenario-slow-progress', 'scenario-accumulate', 'scenario-accumulate-2', 'scenario-accumulate-3', 'scenario-accumulate-4']);
+    const permitted = new Set(['highlight-outline', 'connection-flow', 'packet-transfer', 'behavior-travel', 'behavior-waiting', 'scenario-before', 'scenario-after', 'scenario-progress', 'scenario-message', 'scenario-slow-progress', 'scenario-accumulate', 'scenario-accumulate-2', 'scenario-accumulate-3', 'scenario-accumulate-4', 'story-initial', 'story-middle', 'story-outcome', 'story-progress-active']);
     for (let count = 2; count <= 5; count++) for (let step = 1; step <= count; step++) permitted.add('behavior-window-' + count + '-' + step);
-    if (layout.animations.some(animation => !permitted.has(animation.name) || !/pulse|node-emphasis|connector-emphasis|message-packet|flow-transfer|behavior-|scenario-/.test(animation.className) || (animation.name.startsWith('scenario-') ? animation.duration !== 12000 || animation.iterations !== 'infinite' : animation.name.startsWith('behavior-') ? animation.duration > 20000 || animation.iterations !== 'infinite' : animation.name === 'packet-transfer' ? animation.duration > 4000 || animation.iterations !== 'infinite' : animation.duration * animation.iterations > 5000))) {
+    if (layout.animations.some(animation => !permitted.has(animation.name) || !/pulse|node-emphasis|connector-emphasis|message-packet|flow-transfer|behavior-|scenario-|story-/.test(animation.className) || (animation.name.startsWith('scenario-') || animation.name.startsWith('story-') ? animation.duration !== 12000 || animation.iterations !== 'infinite' : animation.name.startsWith('behavior-') ? animation.duration > 20000 || animation.iterations !== 'infinite' : animation.name === 'packet-transfer' ? animation.duration > 4000 || animation.iterations !== 'infinite' : animation.duration * animation.iterations > 5000))) {
       throw new Error('Unexpected animation or unbounded decorative emphasis.');
     }
     const packetMotion = await evaluate(`(async () => {
@@ -527,6 +548,10 @@ try {
           items: visible('.scenario-backlog-item, .scenario-capacity-slot'),
           messageX: scene.querySelector('.scenario-message-token') ? new DOMMatrix(getComputedStyle(scene.querySelector('.scenario-message-token')).transform).e : null,
           jobVisible: visible('.scenario-job-symbol'),
+          initial: visible('[data-story-phase="initial"]'), middle: visible('[data-story-phase="middle"]'), outcome: visible('[data-story-phase="outcome"]'),
+          storyProgress: scene.querySelector('.story-progress-fill') ? new DOMMatrix(getComputedStyle(scene.querySelector('.story-progress-fill')).transform).a : null,
+          receipts: [...scene.querySelectorAll('.story-receipt')].filter(node => Number(getComputedStyle(node.closest('.story-phase')).opacity) > .9).length,
+          result: [...scene.querySelectorAll('.story-result')].find(node => Number(getComputedStyle(node.closest('.story-phase')).opacity) > .9)?.textContent.trim(),
         });
         const seek = async time => {
           for (const animation of animations) { animation.pause(); animation.currentTime = time; }
@@ -536,7 +561,9 @@ try {
         const start = await seek(500), active = await seek(3000), beforeFailure = await seek(5000);
         const failed = await seek(8000), held = await seek(11000), replay = await seek(12500);
         const template = scene.dataset.scenario;
-        if (!start.normal || start.failure || failed.normal || !failed.failure || held.normal || !held.failure || !replay.normal || replay.failure) failures.push(template + ': normal/failure/replay states are not synchronized.');
+        if (scene.querySelector('.story-phase')) {
+          if (!start.initial || start.middle || start.outcome || !active.middle || active.initial || active.outcome || !failed.outcome || failed.initial || failed.middle || !held.outcome || !replay.initial || replay.outcome) failures.push(template + ': initial/middle/outcome/replay states are not synchronized.');
+        } else if (!start.normal || start.failure || failed.normal || !failed.failure || held.normal || !held.failure || !replay.normal || replay.failure) failures.push(template + ': normal/failure/replay states are not synchronized.');
         if (!scene.querySelector('.scenario-condition')?.textContent.trim() || scene.querySelectorAll('.scenario-explanation p').length !== 2 || !scene.querySelector('.scenario-consequence')?.textContent.trim()) failures.push(template + ': condition or causal explanation is missing.');
         if (template === 'interrupted-work') {
           if (!(active.progress > start.progress && beforeFailure.progress > active.progress && failed.progress > .1 && failed.progress < .9 && Math.abs(held.progress-failed.progress) < .001)) failures.push('Interrupted work does not stop unfinished and hold its progress.');
@@ -548,14 +575,34 @@ try {
           if (start.items !== 0 || active.items <= start.items || beforeFailure.items < active.items || failed.items !== expected || held.items !== expected) failures.push(template + ': pending items/capacity do not accumulate from an empty start.');
           if (template === 'bottleneck' && !(held.progress > failed.progress && failed.progress > active.progress)) failures.push('Bottleneck stops all processing instead of showing continued throughput.');
           if (!scene.querySelector('.scenario-card-to .scenario-delay') || scene.querySelector('.scenario-failure-mark')) failures.push(template + ': delayed work is incorrectly represented as lost.');
+        } else if (template === 'timeout') {
+          if (!(active.storyProgress > start.storyProgress && beforeFailure.storyProgress > active.storyProgress && Math.abs(failed.storyProgress-1) < .001 && Math.abs(held.storyProgress-1) < .001)) failures.push('Timeout stops the worker or fails to hold its completed result.');
+          if (!scene.querySelector('.scenario-card-from .story-middle .is-expired') || scene.querySelector('.scenario-empty-result')) failures.push('Timeout conflates caller expiry with lost work.');
+          if (getComputedStyle(scene.querySelector('.story-clock svg')).fill !== 'none') failures.push('Timeout clock is filled instead of readable.');
+        } else if (template === 'duplicate-effect') {
+          if (start.receipts !== 0 || active.receipts !== 1 || failed.receipts !== 2 || held.receipts !== 2) failures.push('Duplicate effect does not show one applied operation followed by two effects.');
+          const receipts = [...scene.querySelectorAll('.story-receipt')].map(node => node.textContent.trim());
+          if (new Set(receipts).size !== 1) failures.push('The retried operation changes identity.');
+        } else if (template === 'out-of-order') {
+          if (!active.result || !failed.result || active.result === failed.result || held.result !== failed.result || !scene.querySelector('.story-result.is-stale')) failures.push('Out-of-order does not replace newer results with the older result.');
+        } else if (template === 'partial-failure') {
+          if (!scene.querySelector('.scenario-card-at .story-outcome .story-step')?.textContent.includes('saved') || !scene.querySelector('.scenario-card-to .story-outcome .is-failed') || scene.querySelector('.scenario-empty-result')) failures.push('Partial failure removes the first effect instead of retaining it.');
         } else failures.push('Unknown consequence pattern: ' + template);
+        if (['timeout','out-of-order','partial-failure'].includes(template)) {
+          const background = role => getComputedStyle(scene.querySelector('.scenario-card-'+role)).backgroundColor;
+          const affected = template === 'timeout' ? 'from' : 'to';
+          const unaffected = template === 'timeout' ? 'to' : 'from';
+          if (background('at') !== background(unaffected) || background(affected) === background('at')) failures.push(template + ': the healthy participant is highlighted instead of the affected participant.');
+        }
         samples.push({ template, start, active, failed, held });
         await seek(2000);
         animations.forEach(animation => animation.play());
         const before = state();
         await new Promise(done => setTimeout(done, 180));
         const after = state();
-        if (template === 'interrupted-work' || template === 'bottleneck') {
+        if (template === 'timeout') {
+          if (after.storyProgress <= before.storyProgress) failures.push('Timeout worker does not visibly advance.');
+        } else if (template === 'interrupted-work' || template === 'bottleneck') {
           if (after.progress <= before.progress) failures.push(template + ': progress is not visibly advancing during playback.');
         } else if (template === 'message-loss' && after.messageX <= before.messageX) failures.push('Message is not visibly moving during playback.');
       }
@@ -563,7 +610,7 @@ try {
     })()`);
     if (scenarioMotion.failures.length) throw new Error('Invalid consequence animation: ' + JSON.stringify(scenarioMotion.failures));
     if (scenarioMotion.samples.length) {
-      for (const [phase, time] of [['active', 2000], ['outcome', 8000]]) {
+      for (const [phase, time] of [['active', 2000], ['event', 3600], ['outcome', 8000]]) {
         const scenes = await evaluate(`(async () => {
           for (const scene of document.querySelectorAll('.problem-scenario')) for (const animation of scene.getAnimations({ subtree: true })) { animation.pause(); animation.currentTime = ${time}; }
           await new Promise(done => requestAnimationFrame(done));
@@ -610,6 +657,7 @@ try {
         '.issue-notes h4', '.issue-notes strong', '.issue-notes p',
         '.motion-controls legend', '.motion-controls label', '.motion-controls p', '.behavior-step strong', '.behavior-step div > span',
         '.scenario-heading h4', '.scenario-heading > span', '.scenario-condition', '.scenario-runtime', '.scenario-component h5', '.scenario-component span', '.scenario-component-state > span', '.scenario-graphic-note', '.scenario-explanation p', '.scenario-consequence strong', '.scenario-failure',
+        '.story-record', '.story-value', '.story-phase', '.problem-example > summary',
         '.risk p', '.risk-severity', '.footer'];
       const rgba = value => value.match(/[\\d.]+/g).map(Number);
       const luminance = color => {
@@ -649,6 +697,13 @@ try {
     const staticScenarioExpression = `(() => {
       const failures = [];
       for (const scene of document.querySelectorAll('.problem-scenario')) {
+        if (scene.querySelector('.story-phase')) {
+          const visible = phase => [...scene.querySelectorAll('[data-story-phase="'+phase+'"]')].filter(node => Number(getComputedStyle(node).opacity) > .9).length;
+          if (visible('initial') || visible('middle') || !visible('outcome')) failures.push(scene.dataset.scenario + ': static view does not show the held outcome.');
+          const progress = scene.querySelector('.story-progress-fill');
+          if (progress && Math.abs(new DOMMatrix(getComputedStyle(progress).transform).a-1) > .001) failures.push('Static timeout does not show completed work.');
+          continue;
+        }
         if ([...scene.querySelectorAll('.scenario-normal')].some(node => Number(getComputedStyle(node).opacity) !== 0) || [...scene.querySelectorAll('.scenario-failure')].some(node => Number(getComputedStyle(node).opacity) !== 1)) failures.push(scene.dataset.scenario + ': static view does not show the failure outcome.');
         if (scene.dataset.scenario === 'interrupted-work') {
           const progress = new DOMMatrix(getComputedStyle(scene.querySelector('.scenario-progress-fill')).transform).a;
@@ -664,7 +719,7 @@ try {
       const control = document.getElementById('motion-play');
       if (!control) return { checked: 0, failures: [] };
       const failures = [], frame = () => new Promise(done => requestAnimationFrame(done));
-      const staticState = () => [...document.querySelectorAll('.message-packet, .flow-transfer, .behavior-phase, .behavior-travel, .scenario-normal, .scenario-failure, .scenario-progress-fill, .scenario-backlog-item, .scenario-capacity-slot')].map(node => {
+      const staticState = () => [...document.querySelectorAll('.message-packet, .flow-transfer, .behavior-phase, .behavior-travel, .scenario-normal, .scenario-failure, .scenario-progress-fill, .scenario-backlog-item, .scenario-capacity-slot, .story-phase, .story-progress-fill')].map(node => {
         const style = getComputedStyle(node);
         return [style.opacity, style.transform, style.offsetDistance];
       });
@@ -719,6 +774,18 @@ try {
         await new Promise(done => setTimeout(done, 180));
         if (new DOMMatrix(getComputedStyle(progress).transform).a <= before) failures.push('Play does not advance scenario progress under reduced motion.');
       }
+      const storyProgress = document.querySelector('.story-progress-fill');
+      if (storyProgress) {
+        storyProgress.closest('.problem-scenario').scrollIntoView({block:'center'});
+        await frame(); await frame();
+        await new Promise(done => setTimeout(done, 60));
+        const scene = storyProgress.closest('.problem-scenario');
+        for (const animation of scene.getAnimations({subtree:true})) animation.currentTime = 3600;
+        await frame();
+        const before = new DOMMatrix(getComputedStyle(storyProgress).transform).a;
+        await new Promise(done => setTimeout(done, 180));
+        if (new DOMMatrix(getComputedStyle(storyProgress).transform).a <= before || Number(getComputedStyle(scene.querySelector('.scenario-card-from .story-middle')).opacity) < .9) failures.push('Timeout Play does not keep work moving after caller expiry.');
+      }
       document.getElementById('motion-pause').checked = true;
       await frame(); await frame();
       const animations = document.getAnimations();
@@ -733,12 +800,19 @@ try {
     })()`);
     if (reducedPlayback.failures.length) throw new Error('Invalid reduced-motion controls: ' + JSON.stringify(reducedPlayback.failures));
     await cdp('Emulation.setEmulatedMedia', { media: 'print', features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
+    const printProblems = await evaluate(`(() => {
+      const details = [...document.querySelectorAll('.problem-example')];
+      details.forEach(node => node.open = false);
+      return {checked:details.length, visible:details.every(node => node.querySelector('article').getClientRects().length > 0)};
+    })()`);
+    if (!printProblems.visible) throw new Error('Print hides unopened problem illustrations.');
     const printMotion = await evaluate(`({ animations: document.getAnimations().length, phasesVisible: [...document.querySelectorAll('.behavior-phase:not(.behavior-step-highlight)')].every(node => Number(getComputedStyle(node).opacity) === 1) })`);
     if (printMotion.animations || !printMotion.phasesVisible) throw new Error('Print animates or hides behavior indications after Play.');
     const printScenarios = await evaluate(staticScenarioExpression);
     if (printScenarios.failures.length) throw new Error('Invalid print consequence: ' + JSON.stringify(printScenarios.failures));
     const printDetails = await evaluate(`({ checked: document.querySelectorAll('.connection-details').length, visible: [...document.querySelectorAll('.connection-details .connections')].every(node => node.getClientRects().length > 0 && getComputedStyle(node).visibility !== 'hidden') })`);
     if (!printDetails.visible) throw new Error('Print hides supporting connection details.');
+    await evaluate(`document.querySelectorAll('.problem-example').forEach(node => node.open = true)`);
     await evaluate(`document.getElementById('motion-system') && (document.getElementById('motion-system').checked = true)`);
     await cdp('Emulation.setEmulatedMedia', { media: 'screen', features: [{ name: 'prefers-reduced-motion', value: 'reduce' }] });
     const screenshot = await cdp('Page.captureScreenshot', { format: 'png' });
@@ -748,6 +822,13 @@ try {
       await evaluate('window.scrollTo(0,0)');
       const overview = await cdp('Page.captureScreenshot', {format:'png'});
       writeFileSync(join(resolve(destination), 'showcase-overview.png'), Buffer.from(overview.data,'base64'));
+      await evaluate(`document.querySelectorAll('.problem-example').forEach(node => node.open = false)`);
+      const problems = await evaluate(`(() => {const node=document.getElementById('problems');return node ? {y:node.getBoundingClientRect().top+scrollY,height:node.offsetHeight} : null;})()`);
+      if (problems) {
+        const shot = await cdp('Page.captureScreenshot',{format:'png',captureBeyondViewport:true,clip:{x:0,y:problems.y,width,height:problems.height,scale:1}});
+        writeFileSync(join(resolve(destination),'showcase-problems.png'),Buffer.from(shot.data,'base64'));
+      }
+      await evaluate(`document.querySelectorAll('.problem-example').forEach(node => node.open = true)`);
       for (const id of ['motion-flow', 'motion-sequence', 'scenario-interrupted-work', 'icons', 'elements']) {
         const bounds = await evaluate('(() => {const node=document.getElementById(' + JSON.stringify(id) + ');return {y:node.getBoundingClientRect().top+scrollY,height:Math.min(node.offsetHeight,1500)};})()');
         const shot = await cdp('Page.captureScreenshot',{format:'png',captureBeyondViewport:true,clip:{x:0,y:bounds.y,width,height:bounds.height,scale:1}});
@@ -809,7 +890,7 @@ try {
         writeFileSync(join(resolve(destination), reportName + '-' + change.id + '.png'), Buffer.from(changeImage.data, 'base64'));
       }
     }
-    results.push({ ...layout, nativeMotion, showcaseInteractions, diagramText, arrowLabels, navigationCheck, connectionBadges, diagramRouting, brandArtwork, packetMotion, sequenceMotion, scenarioMotion, responsiveSequence, staticPackets, staticScenarios, contrast, reducedMotion, reducedPlayback, printMotion, printScenarios, printDetails, screenshot: output });
+    results.push({ ...layout, nativeMotion, showcaseInteractions, problemDisclosures, diagramText, arrowLabels, navigationCheck, connectionBadges, diagramRouting, brandArtwork, packetMotion, sequenceMotion, scenarioMotion, responsiveSequence, staticPackets, staticScenarios, contrast, reducedMotion, reducedPlayback, printMotion, printScenarios, printDetails, printProblems, screenshot: output });
   }
   if (pageErrors.length) throw new Error(pageErrors.join('; '));
   console.log(JSON.stringify({ checks: results, pageErrors }, null, 2));
