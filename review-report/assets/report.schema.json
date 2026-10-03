@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:review-report:v1",
+  "title": "Technical review or proposed-solution report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "mode", "title", "context", "changes", "impact"],
+  "properties": {
+    "version": {"type": "integer", "enum": [1]},
+    "mode": {"type": "string", "enum": ["review", "plan"]},
+    "title": {"$ref": "#/$defs/text"},
+    "summary": {"$ref": "#/$defs/text"},
+    "context": {
+      "type": "object", "additionalProperties": false,
+      "required": ["problem", "baseline"],
+      "properties": {
+        "problem": {"$ref": "#/$defs/text"}, "baseline": {"$ref": "#/$defs/text"},
+        "scope": {"$ref": "#/$defs/text"},
+        "constraints": {"$ref": "#/$defs/texts"}, "assumptions": {"$ref": "#/$defs/texts"},
+        "visual": {"$ref": "#/$defs/visual"}
+      }
+    },
+    "changes": {"type": "array", "items": {"$ref": "#/$defs/change"}},
+    "impact": {"type": "array", "items": {"$ref": "#/$defs/impact"}},
+    "manualChanges": {"type": "array", "items": {"$ref": "#/$defs/manual"}},
+    "risks": {"type": "array", "items": {"$ref": "#/$defs/risk"}}
+  },
+  "$defs": {
+    "text": {"type": "string", "minLength": 1, "pattern": "\\S"},
+    "texts": {"type": "array", "items": {"$ref": "#/$defs/text"}},
+    "id": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_-]*$"},
+    "status": {"type": "string", "enum": ["new", "changed", "removed", "unchanged"]},
+    "kind": {"type": "string", "enum": ["generic", "client", "server", "service", "config", "cron", "ci-worker", "worker", "process", "thread", "queue", "message", "database", "storage", "repository", "function", "decision"]},
+    "element": {
+      "type": "object", "additionalProperties": false, "required": ["label", "status"],
+      "properties": {
+        "label": {"$ref": "#/$defs/text"}, "status": {"$ref": "#/$defs/status"},
+        "detail": {"$ref": "#/$defs/text"}, "animate": {"type": "boolean"},
+        "kind": {"$ref": "#/$defs/kind"}, "meta": {"$ref": "#/$defs/text"},
+        "brand": {"$ref": "#/$defs/id"}
+      }
+    },
+    "node": {
+      "type": "object", "additionalProperties": false, "required": ["id", "label", "status"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "label": {"$ref": "#/$defs/text"},
+        "status": {"$ref": "#/$defs/status"}, "detail": {"$ref": "#/$defs/text"},
+        "animate": {"type": "boolean"}, "kind": {"$ref": "#/$defs/kind"},
+        "group": {"$ref": "#/$defs/id"}, "meta": {"$ref": "#/$defs/text"},
+        "issue": {"$ref": "#/$defs/text"}, "brand": {"$ref": "#/$defs/id"}
+      }
+    },
+    "edge": {
+      "type": "object", "additionalProperties": false, "required": ["from", "to", "label", "status"],
+      "properties": {
+        "from": {"$ref": "#/$defs/id"}, "to": {"$ref": "#/$defs/id"},
+        "label": {"$ref": "#/$defs/text"}, "status": {"$ref": "#/$defs/status"},
+        "animate": {"type": "boolean"}, "issue": {"$ref": "#/$defs/text"},
+        "transport": {"type": "string", "enum": ["request", "message", "read", "write", "config", "trigger", "deploy", "spawn"]}
+      }
+    },
+    "group": {
+      "type": "object", "additionalProperties": false, "required": ["id", "label", "kind"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "label": {"$ref": "#/$defs/text"},
+        "kind": {"type": "string", "enum": ["server", "process", "ci-worker", "worker"]},
+        "detail": {"$ref": "#/$defs/text"}
+      }
+    },
+    "code": {
+      "type": "object", "additionalProperties": false, "required": ["summary", "before", "after"],
+      "properties": {
+        "summary": {"$ref": "#/$defs/text"},
+        "before": {"type": "string"}, "after": {"type": "string"},
+        "file": {"$ref": "#/$defs/text"}, "symbol": {"$ref": "#/$defs/text"},
+        "language": {"$ref": "#/$defs/text"}
+      }
+    },
+    "row": {
+      "type": "object", "additionalProperties": false, "required": ["label", "before", "after", "status"],
+      "properties": {
+        "label": {"$ref": "#/$defs/text"}, "before": {"$ref": "#/$defs/text"},
+        "after": {"$ref": "#/$defs/text"}, "status": {"$ref": "#/$defs/status"},
+        "reason": {"$ref": "#/$defs/text"}
+      }
+    },
+    "visual": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false, "required": ["template", "caption", "before", "after"],
+          "properties": {
+            "template": {"type": "string", "enum": ["before-after"]}, "caption": {"$ref": "#/$defs/text"},
+            "before": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/element"}},
+            "after": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/element"}}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["template", "caption", "nodes", "edges"],
+          "properties": {
+            "template": {"type": "string", "enum": ["flow", "dependency-map", "state-transitions", "communication"]},
+            "caption": {"$ref": "#/$defs/text"},
+            "nodes": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/node"}},
+            "edges": {"type": "array", "items": {"$ref": "#/$defs/edge"}},
+            "groups": {"type": "array", "items": {"$ref": "#/$defs/group"}}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["template", "caption", "rows"],
+          "properties": {
+            "template": {"type": "string", "enum": ["comparison"]}, "caption": {"$ref": "#/$defs/text"},
+            "rows": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/row"}}
+          }
+        }
+      ]
+    },
+    "change": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "title", "status", "description", "why"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"}, "title": {"$ref": "#/$defs/text"},
+        "status": {"type": "string", "enum": ["new", "changed", "removed"]},
+        "description": {"$ref": "#/$defs/text"}, "why": {"$ref": "#/$defs/text"},
+        "visual": {"$ref": "#/$defs/visual"}, "evidence": {"$ref": "#/$defs/texts"},
+        "code": {"$ref": "#/$defs/code"}
+      }
+    },
+    "impact": {
+      "type": "object", "additionalProperties": false, "required": ["change", "description", "basis"],
+      "properties": {
+        "change": {"$ref": "#/$defs/id"}, "description": {"$ref": "#/$defs/text"},
+        "basis": {"type": "string", "enum": ["observed", "inferred", "expected"]}
+      }
+    },
+    "manual": {
+      "type": "object", "additionalProperties": false, "required": ["change", "action"],
+      "properties": {
+        "change": {"$ref": "#/$defs/id"}, "action": {"$ref": "#/$defs/text"},
+        "prerequisite": {"$ref": "#/$defs/text"}, "verification": {"$ref": "#/$defs/text"}
+      }
+    },
+    "risk": {
+      "type": "object", "additionalProperties": false,
+      "required": ["change", "title", "severity", "condition", "consequence"],
+      "properties": {
+        "change": {"$ref": "#/$defs/id"}, "title": {"$ref": "#/$defs/text"},
+        "severity": {"type": "string", "enum": ["important", "critical"]},
+        "condition": {"$ref": "#/$defs/text"}, "consequence": {"$ref": "#/$defs/text"},
+        "mitigation": {"$ref": "#/$defs/text"}
+      }
+    }
+  }
+}

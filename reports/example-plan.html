@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Recover transient request failures</title>
+  <style>:root {
+  --canvas: #f5f6f3;
+  --paper: #ffffff;
+  --ink: #172333;
+  --muted: #536171;
+  --line: #d9e0e5;
+  --new: #1d4ed8;
+  --new-bg: #eff5ff;
+  --changed: #92500b;
+  --changed-bg: #fff8e9;
+  --removed: #5a5f68;
+  --removed-bg: #f2f2f3;
+  --unchanged: #526273;
+  --unchanged-bg: #f4f7f9;
+  --risk: #9d2832;
+  --risk-bg: #fff4f3;
+}
+* { box-sizing: border-box; }
+html { scroll-padding-top: 24px; }
+body { margin: 0; color: var(--ink); background: var(--canvas); font: 16px/1.6 "Segoe UI", system-ui, sans-serif; }
+a { color: var(--new); text-underline-offset: 3px; overflow-wrap: anywhere; }
+a:focus-visible { outline: 3px solid var(--new); outline-offset: 5px; border-radius: 2px; }
+code, .mono { font-family: Consolas, "SFMono-Regular", monospace; font-size: .88em; }
+p { margin: 0 0 16px; overflow-wrap: anywhere; }
+ul, ol { padding-left: 22px; }
+li { margin: 7px 0; overflow-wrap: anywhere; }
+strong { font-weight: 650; }
+h1, h2, h3, h4 { line-height: 1.22; margin: 0; overflow-wrap: anywhere; }
+h1 { font-size: clamp(30px, 3.8vw, 45px); letter-spacing: -.035em; max-width: 23ch; font-weight: 700; }
+h2 { font-size: 25px; letter-spacing: -.025em; }
+h3 { font-size: 21px; letter-spacing: -.02em; }
+h4 { font-size: 16px; font-weight: 650; }
+.shell { max-width: 1232px; padding: 52px 32px 64px; margin: auto; display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 48px; align-items: start; }
+.rail { position: sticky; top: 30px; }
+.brand { border-top: 3px solid var(--ink); padding-top: 14px; font-weight: 700; font-size: 17px; letter-spacing: -.02em; }
+.rail-note { font-size: 13px; color: var(--muted); margin: 5px 0 28px; }
+.navigation { display: grid; gap: 5px; }
+.navigation a { display: block; padding: 8px 0; color: var(--muted); text-decoration: none; font-size: 14px; }
+.navigation a:hover { color: var(--new); }
+.navigation .index { font: 12px Consolas, monospace; margin-right: 10px; color: var(--muted); }
+.rail-mode { margin-top: 30px; padding-top: 15px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.report { min-width: 0; }
+.masthead { padding: 2px 0 30px; border-bottom: 1px solid var(--line); }
+.eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin-bottom: 20px; }
+.mode { display: inline-block; padding: 4px 10px; margin-bottom: 18px; border: 1px solid #bfd0f4; color: #244995; background: var(--new-bg); border-radius: 5px; font-size: 12px; font-weight: 600; }
+.summary { margin: 18px 0 0; font-size: 18px; color: var(--muted); max-width: 68ch; }
+.legend { display: flex; flex-wrap: wrap; gap: 15px; margin: 22px 0 0; font-size: 12px; color: var(--muted); }
+.legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { width: 10px; height: 10px; display: inline-block; border-radius: 2px; background: var(--tone); }
+.status-new { --tone: var(--new); --tint: var(--new-bg); }
+.status-changed { --tone: var(--changed); --tint: var(--changed-bg); }
+.status-removed { --tone: var(--removed); --tint: var(--removed-bg); }
+.status-unchanged { --tone: var(--unchanged); --tint: var(--unchanged-bg); }
+.section { padding: 34px 0; border-bottom: 1px solid var(--line); }
+.section-heading { display: flex; align-items: baseline; gap: 15px; margin-bottom: 23px; }
+.section-number { font: 13px Consolas, monospace; color: var(--muted); }
+.context-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.context-block { padding: 18px 20px; background: var(--paper); border: 1px solid var(--line); border-radius: 7px; min-width: 0; }
+.label { display: block; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px; }
+.context-block p { margin: 0; font-size: 15px; }
+.context-notes { margin-top: 20px; }
+.context-notes h3 { font-size: 15px; margin: 17px 0 6px; }
+.context-notes p, .context-notes li { font-size: 15px; }
+.change { margin: 24px 0 30px; }
+.change + .change { padding-top: 28px; border-top: 1px solid var(--line); }
+.change-heading { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; margin-bottom: 13px; }
+.change-id { font: 12px Consolas, monospace; color: var(--muted); }
+.badge { font-size: 11px; font-weight: 650; color: var(--tone); background: var(--tint); border: 1px solid color-mix(in srgb, var(--tone) 22%, transparent); padding: 3px 8px; border-radius: 4px; display: inline-block; }
+.why { border-left: 2px solid var(--line); padding: 0 0 0 14px; margin: 17px 0; font-size: 15px; color: var(--muted); }
+.why strong { color: var(--ink); }
+.visual { margin: 23px 0 17px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); overflow: hidden; }
+.visual-heading { padding: 11px 18px; border-bottom: 1px solid var(--line); font: 11px Consolas, monospace; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.visual-content { padding: 22px; }
+.visual figcaption { padding: 14px 18px; border-top: 1px solid var(--line); background: #fafbf9; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.before-after { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+.column-title { margin: 0 0 14px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.element { position: relative; margin: 10px 0; padding: 14px; background: var(--tint); border: 1px solid color-mix(in srgb, var(--tone) 35%, white); border-left: 3px solid var(--tone); border-radius: 6px; min-width: 0; }
+.element h4 { font-size: 15px; line-height: 1.45; margin: 7px 0 0; }
+.element p { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+.status-removed.element h4 { text-decoration: line-through; text-decoration-thickness: 1px; }
+.status-removed.element { border-style: dashed; }
+.pulse::after { content: ""; position: absolute; inset: -3px; pointer-events: none; border: 2px solid var(--tone); border-radius: 8px; opacity: .2; animation: highlight-outline 2.2s ease-in-out 2; }
+@keyframes highlight-outline { 0%, 100% { opacity: .2; } 50% { opacity: .65; } }
+.graph { display: block; width: 100%; height: auto; overflow: visible; }
+.graph text { font-family: "Segoe UI", system-ui, sans-serif; fill: var(--ink); }
+.graph .node-label { font-size: 14px; font-weight: 600; }
+.graph .node-status { font-size: 10px; fill: var(--tone); font-weight: 600; }
+.graph .node-box { fill: var(--tint); stroke: var(--tone); stroke-opacity: .6; stroke-width: 1.4; }
+.graph .status-removed .node-box { stroke-dasharray: 5 3; }
+.graph .connector { fill: none; stroke: var(--tone); stroke-width: 1.7; }
+.graph .status-removed .connector { stroke-dasharray: 5 4; }
+.graph .node-emphasis { fill: none; stroke: var(--tone); stroke-width: 3; opacity: .2; animation: highlight-outline 2.2s ease-in-out 2; }
+.graph .edge-number-box { fill: white; stroke: var(--line); stroke-width: 1; }
+.graph .edge-number { fill: var(--muted); font: 10px Consolas, monospace; }
+.graph .connector-emphasis { fill: none; stroke: var(--tone); stroke-width: 2.5; stroke-dasharray: 5 9; opacity: .75; animation: connection-flow 2.2s linear 2; }
+@keyframes connection-flow { to { stroke-dashoffset: -56; } }
+.node-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 9px; margin-top: 12px; }
+.node-notes .element { margin: 0; padding: 12px; }
+.connections { margin: 18px 0 0; padding: 0; list-style: none; }
+.connections li { margin: 0; padding: 9px 0; border-bottom: 1px solid #edf0f2; font-size: 13px; }
+.connections li:last-child { border-bottom: 0; }
+.connection-direction { font-weight: 650; color: var(--ink); }
+.connection-index { font: 11px Consolas, monospace; color: var(--muted); margin-right: 8px; }
+.connection-label { display: block; margin-top: 4px; color: var(--muted); }
+.connections .badge { margin-left: 7px; }
+.comparison { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 14px; }
+.comparison th, .comparison td { padding: 13px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.comparison th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.comparison th:first-child { width: 28%; }
+.comparison tr:last-child td { border-bottom: 0; }
+.comparison .after-cell { background: var(--tint); }
+.row-name { font-weight: 650; margin-bottom: 7px; }
+.row-reason { margin: 7px 0 0; color: var(--muted); font-size: 12px; }
+.evidence { padding-top: 5px; font-size: 13px; color: var(--muted); }
+.evidence ul { padding-left: 18px; margin: 7px 0 0; }
+.evidence li { white-space: pre-wrap; font-family: Consolas, monospace; }
+.impact-item, .manual-item { padding: 17px 0; border-bottom: 1px solid #e6eaed; }
+.impact-item:first-child, .manual-item:first-child { padding-top: 0; }
+.impact-item:last-child, .manual-item:last-child { border-bottom: 0; padding-bottom: 0; }
+.item-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; font-size: 12px; color: var(--muted); margin-bottom: 7px; }
+.basis { border: 1px solid var(--line); padding: 1px 7px; border-radius: 3px; font-size: 11px; }
+.impact-item p, .manual-item p { margin: 0; }
+.manual-item .detail { font-size: 14px; color: var(--muted); margin: 8px 0 0; }
+.risk { padding: 20px; border-left: 3px solid var(--risk); border-radius: 0 6px 6px 0; background: var(--risk-bg); margin: 16px 0; }
+.risk h3 { font-size: 18px; margin: 7px 0 12px; }
+.risk p { font-size: 14px; margin-bottom: 8px; }
+.risk p:last-child { margin-bottom: 0; }
+.risk-severity { color: var(--risk); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.empty { color: var(--muted); font-size: 15px; }
+.footer { margin-top: 28px; color: var(--muted); font-size: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+.skip-link { position: absolute; left: 12px; top: -60px; background: white; padding: 10px 16px; z-index: 10; }
+.skip-link:focus { top: 10px; }
+@media (max-width: 1000px) {
+  .shell { grid-template-columns: minmax(0, 1fr); max-width: 880px; gap: 30px; padding: 26px 24px 48px; }
+  .rail { position: static; }
+  .brand { display: inline-block; min-width: 150px; }
+  .rail-note { display: inline-block; margin: 0 0 0 14px; }
+  .navigation { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 12px; }
+  .navigation a { font-size: 12px; }
+  .rail-mode { margin: 4px 0 0; padding-top: 8px; }
+}
+@media (max-width: 600px) {
+  .shell { padding: 20px 16px 38px; gap: 24px; }
+  .context-grid, .before-after { grid-template-columns: minmax(0, 1fr); }
+  .before-after { gap: 24px; }
+  .visual-content { padding: 15px; }
+  .context-block { padding: 16px; }
+  .summary { font-size: 16px; }
+  .section { padding: 27px 0; }
+  .comparison, .comparison tbody, .comparison tr, .comparison td { display: block; width: 100%; }
+  .comparison thead { display: none; }
+  .comparison tr { border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 12px; }
+  .comparison tr:last-child { border-bottom: 0; padding-bottom: 0; margin-bottom: 0; }
+  .comparison td { border-bottom: 0; padding: 8px 10px; }
+  .comparison td[data-label]::before { content: attr(data-label); display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+  .risk { padding: 16px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+@media print {
+  body { background: white; font-size: 11pt; }
+  .shell { display: block; padding: 0; max-width: none; }
+  .rail, .skip-link { display: none; }
+  .visual, .risk { break-inside: avoid; }
+  .section { padding: 20px 0; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+  a { color: var(--ink); }
+}
+
+/* IDE-style report: neutral chrome, saturated semantic accents, readable excerpts. */
+:root {
+  color-scheme: dark;
+  --canvas: #1b1c1e;
+  --paper: #26282b;
+  --ink: #f0f1f2;
+  --muted: #b9bdc4;
+  --line: #494c52;
+  --new: #87d66a;
+  --new-bg: #243426;
+  --changed: #ffc15a;
+  --changed-bg: #3b3020;
+  --removed: #f0a19a;
+  --removed-bg: #3b2827;
+  --unchanged: #b9bdc4;
+  --unchanged-bg: #2b2d30;
+  --risk: #ff938a;
+  --risk-bg: #352426;
+  --chrome: #303236;
+  --editor: #1e1f22;
+  --art-surface: #26282b;
+  --art-depth: #383b40;
+  --art-accent: currentColor;
+  --icon-signal: #87d66a;
+  --brand-tile-dark: #141517;
+  --brand-tile-light: #f4f4f4;
+  --code-ink: #e2e3e5;
+  --code-added: #263a29;
+  --code-deleted: #3e282a;
+  --code-keyword: #efa366;
+  --code-string: #a5d17c;
+  --code-number: #e8c77d;
+  --code-comment: #afb3bc;
+  --sans: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", "JetBrainsMono Nerd Font", "Cascadia Code", Consolas, monospace;
+}
+body { background: var(--canvas); font: 16px/1.65 var(--sans); }
+code, .mono { font-family: var(--mono); }
+a { color: var(--new); }
+.entity-sprite, .ui-sprite, .brand-sprite { position: absolute; pointer-events: none; }
+.brand-surface-dark { --brand-tile: var(--brand-tile-dark); background: var(--brand-tile); }
+.brand-surface-light { --brand-tile: var(--brand-tile-light); background: var(--brand-tile); }
+.brand-art { border-radius: 7px; }
+.brand-credits { margin-top: 20px; color: var(--muted); font-size: 12px; line-height: 1.8; }
+.icon-library { max-width: 1240px; margin: 0 auto; padding: 36px 28px 60px; }
+.icon-library header p { max-width: 90ch; }
+.icon-library pre { padding: 16px; background: var(--editor); border: 1px solid var(--line); border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.catalog-note { color: var(--muted); font-size: 14px; }
+.icon-library section { margin-top: 34px; }
+.icon-library h2 { margin-bottom: 14px; }
+.icon-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.icon-card { display: flex; align-items: flex-start; flex-direction: column; gap: 10px; padding: 18px; border: 1px solid var(--line); border-radius: 7px; background: var(--paper); }
+.icon-card h3 { font-size: 16px; }
+.icon-card code { font-size: 13px; }
+.icon-card a { font-size: 12px; }
+.icon-tile { display: inline-flex; padding: 9px; border-radius: 8px; color: var(--new); }
+.icon-tile svg { width: 52px; height: 52px; }
+.archived-mark { font-size: 12px; color: var(--changed); }
+.entity-icon, .ui-icon { flex: 0 0 auto; color: var(--tone, var(--new)); vertical-align: middle; }
+.ui-icon { color: currentColor; }
+.shell { display: grid; grid-template-columns: 52px minmax(0, 1fr); column-gap: 24px; row-gap: 0; max-width: 1320px; padding: 24px 32px 60px; }
+.workspace-bar { grid-column: 1 / -1; display: flex; gap: 18px; align-items: center; padding: 0 0 18px; border-bottom: 1px solid var(--line); }
+.brand-mark { display: flex; gap: 12px; align-items: center; font-size: 17px; font-weight: 650; }
+.brand-mark > .ui-icon { color: var(--new); }
+.brand-muted { color: var(--muted); font-weight: 450; }
+.workspace-label { color: var(--muted); font-size: 13px; margin-left: auto; }
+.mode { display: inline-flex; gap: 7px; align-items: center; margin: 0; border-color: #82643c; border-radius: 4px; padding: 5px 10px; background: var(--changed-bg); color: var(--changed); font-size: 12px; }
+.tool-rail { position: sticky; top: 20px; margin-top: 26px; padding: 3px; background: #232428; border: 1px solid var(--line); border-radius: 5px; }
+.tool-rail nav { display: flex; flex-direction: column; gap: 4px; }
+.tool-link { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; color: #c5c9d0; border-radius: 3px; text-decoration: none; transition: background-color 150ms, color 150ms; }
+.tool-link:hover, .tool-link:focus-visible { color: var(--ink); background: #3c3f44; }
+.tool-changes { color: var(--new); background: #2c3e2c; }
+.tool-risks { color: var(--risk); }
+.tool-divider { display: block; height: 1px; margin: 3px 5px; background: var(--line); }
+.masthead { padding: 26px 0 0; border-bottom: 1px solid var(--line); }
+.eyebrow { font-size: 12px; letter-spacing: .06em; color: var(--muted); margin-bottom: 12px; }
+h1 { max-width: 42ch; font-size: clamp(28px, 3vw, 34px); font-weight: 650; letter-spacing: -.025em; }
+h2 { font-size: 23px; letter-spacing: -.012em; }
+h3 { font-size: 20px; letter-spacing: -.01em; }
+.summary { margin-top: 14px; font-size: 16px; max-width: 78ch; line-height: 1.7; color: #cbd0d6; }
+.report-meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; margin-top: 20px; font-size: 13px; color: var(--muted); }
+.legend { margin: 0; gap: 16px; font-size: 12px; color: #d0d3d8; }
+.swatch { border-radius: 50%; width: 7px; height: 7px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--tone) 16%, transparent); }
+.navigation { display: flex; flex-wrap: wrap; gap: 0 22px; margin-top: 18px; padding: 0; }
+.navigation a { display: flex; gap: 8px; align-items: center; min-height: 44px; padding: 12px 0; font-size: 13px; color: #d0d3d8; border-bottom: 2px solid transparent; }
+.navigation a:hover { color: var(--ink); border-color: var(--new); }
+.navigation a[href="#changes"] { color: var(--new); border-bottom-color: var(--new); }
+.navigation a[href="#risks"] > .ui-icon { color: var(--risk); }
+.section { padding: 28px 0; }
+.section-heading { align-items: center; gap: 10px; margin-bottom: 18px; }
+.section-heading > .ui-icon { color: #c5c9d0; }
+.section-number { color: #d0d3d8; font-size: 12px; background: #2b2d30; border: 1px solid var(--line); width: 28px; height: 28px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+.context-grid { gap: 14px; }
+.context-block { border-color: var(--line); background: var(--paper); border-radius: 6px; padding: 16px 18px; }
+.context-block .label { font-size: 12px; margin-bottom: 8px; color: #c5c9d0; letter-spacing: .03em; }
+.context-block p { font-size: 16px; line-height: 1.65; }
+.context-notes { margin-top: 16px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 18px; }
+.context-notes h3 { font-size: 13px; color: var(--muted); margin: 4px 0 0; font-weight: 550; }
+.context-notes p, .context-notes ul, .context-notes li { margin: 0; font-size: 14px; color: #cbd0d6; }
+.context-notes ul { padding-left: 18px; }
+.context-notes li { margin: 3px 0; }
+.change { margin: 18px 0; padding: 22px; background: var(--paper); border: 1px solid #55585e; border-radius: 8px; box-shadow: none; }
+.change + .change { padding-top: 22px; border-top: 1px solid #55585e; }
+.change-heading { margin-bottom: 12px; gap: 12px; }
+.change-id { background: var(--tint); border: 1px solid color-mix(in srgb, var(--tone) 60%, var(--line)); color: var(--tone); border-radius: 4px; padding: 4px 7px; font: 12px var(--mono); }
+.change-heading .badge { margin-left: auto; font-size: 12px; }
+.badge { border-radius: 4px; padding: 3px 8px; border-color: color-mix(in srgb, var(--tone) 60%, transparent); }
+.change-description { font-size: 16px; color: #d0d3d8; margin: 0 0 18px; line-height: 1.65; }
+.why { display: block; border-left: 0; padding: 0; margin: 17px 0; font-size: 15px; color: #d0d3d8; }
+.why strong { color: var(--changed); margin-right: 5px; }
+.code-change { border: 1px solid #585c62; border-radius: 6px; overflow: hidden; background: var(--editor); }
+.code-filebar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 14px; background: var(--chrome); border-bottom: 1px solid #585c62; font-size: 13px; }
+.code-filebar > .ui-icon { color: var(--changed); }
+.code-file { color: var(--ink); font: 13px var(--mono); overflow-wrap: anywhere; }
+.code-symbol { color: #dedfe3; font: 12px var(--mono); padding: 3px 7px; background: var(--editor); border: 1px solid #56595f; border-radius: 3px; }
+.code-kind { color: #c5c9d0; font-size: 12px; margin-left: auto; }
+.code-language { color: var(--changed); font: 12px var(--mono); }
+.code-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.code-side { min-width: 0; }
+.code-side + .code-side { border-left: 1px solid var(--line); }
+.code-side-title { display: flex; justify-content: space-between; gap: 8px; padding: 10px 14px; color: #c5c9d0; background: #26282b; border-bottom: 1px solid #3d4045; font: 12px var(--mono); }
+.code-side-title > span:first-child { display: inline-flex; align-items: center; gap: 7px; }
+.code-side:last-child .code-side-title > span:first-child { color: var(--new); }
+.code-line-note { color: var(--muted); }
+.code-excerpt { margin: 0; padding: 8px 0 14px; white-space: pre-wrap; font: 14px/1.9 var(--mono); color: var(--code-ink); overflow-wrap: anywhere; }
+.code-excerpt code { font: inherit; }
+.code-line { display: flex; min-height: 27px; padding: 0 12px 0 6px; }
+.code-lineno { display: inline-block; text-align: right; width: 27px; flex: 0 0 27px; margin-right: 12px; padding-right: 10px; color: #b2b8c2; border-right: 1px solid #535961; user-select: none; font-size: 12px; }
+.code-sign { display: inline-block; width: 20px; flex: 0 0 20px; user-select: none; }
+.code-text { min-width: 0; white-space: pre-wrap; }
+.code-line.deleted { background: var(--code-deleted); }
+.code-line.deleted .code-sign { color: var(--risk); }
+.code-line.added { background: var(--code-added); }
+.code-line.added .code-sign { color: var(--new); }
+.code-line.context { color: var(--code-ink); }
+.token-keyword { color: var(--code-keyword); }
+.token-string { color: var(--code-string); }
+.token-number { color: var(--code-number); }
+.token-comment { color: var(--code-comment); }
+.code-empty { display: block; color: var(--muted); font-size: 13px; padding: 4px 16px; }
+.code-summary { border-top: 1px solid var(--line); margin: 0; padding: 12px 14px; color: #d0d3d8; font-size: 14px; background: #2b2d30; line-height: 1.65; }
+.visual { margin: 18px 0 0; border-color: #585c62; border-radius: 6px; background: var(--editor); }
+.visual-heading { display: flex; align-items: center; gap: 9px; border-bottom-color: var(--line); font: 12px var(--mono); letter-spacing: .02em; color: #dedfe3; background: var(--chrome); padding: 12px 14px; }
+.visual-heading > .ui-icon { color: var(--changed); }
+.visual-heading-note { color: var(--muted); margin-left: auto; font: 12px var(--sans); text-transform: none; letter-spacing: 0; }
+.visual-content { padding: 16px; background-image: radial-gradient(#73798066 1px, transparent 1px); background-size: 16px 16px; }
+.visual figcaption { background: #2b2d30; border-top-color: var(--line); padding: 12px 14px; font-size: 14px; line-height: 1.65; color: #d0d3d8; }
+.graph text { font-family: var(--sans); fill: var(--ink); }
+.graph .node-box { fill: #2b2d30; stroke: #9198a2; stroke-width: 1.8; stroke-opacity: 1; }
+.graph .status-new .node-box { fill: var(--new-bg); stroke: var(--new); }
+.graph .status-changed .node-box { fill: var(--changed-bg); stroke: var(--changed); }
+.graph .status-removed .node-box { fill: var(--removed-bg); stroke: var(--removed); }
+.graph .node-art-bg { fill: #3b3e44; }
+.graph .status-new .node-art-bg { fill: #354a2e; }
+.graph .status-changed .node-art-bg { fill: #514027; }
+.graph .node-art { color: var(--tone); }
+.graph .node-label { font-size: 18.5px; font-weight: 650; }
+.graph .node-kind { fill: #cbd0d6; font: 12px var(--mono); letter-spacing: .02em; }
+.graph .node-meta { fill: #d0d3d8; font: 13px var(--mono); }
+.graph .node-status { font: 12px var(--sans); fill: var(--tone); }
+.graph .node-status-icon { color: var(--tone); }
+.graph .connector { stroke-width: 2.2; stroke-opacity: .95; }
+.graph .connector-halo { fill: none; stroke: var(--editor); stroke-width: 7; stroke-linejoin: round; stroke-linecap: round; }
+.graph .connector { stroke-linejoin: round; stroke-linecap: round; }
+.graph .message-packet { offset-position: 0px 0px; offset-anchor: 0px 0px; offset-rotate: 0deg; offset-distance: 35%; color: var(--tone); pointer-events: none; animation: packet-transfer 3s linear infinite; }
+.has-packets:has(.packet-pause:checked) .message-packet { animation-play-state: paused; }
+/* The routed path is shared with the connector. The parcel stays upright and
+   travels only inside the route, leaving the source and arrowhead unobstructed. */
+@keyframes packet-transfer {
+  0% { offset-distance: 18px; opacity: 0; }
+  10%, 85% { opacity: 1; }
+  100% { offset-distance: calc(100% - 25px); opacity: 0; }
+}
+.packet-guidance { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 3px 14px; background: #26282b; color: var(--muted); border-bottom: 1px solid var(--line); font-size: 13px; }
+.packet-guidance .ui-icon { color: var(--new); }
+.packet-control { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin-left: auto; cursor: pointer; color: var(--ink); }
+.packet-pause { accent-color: var(--new); width: 16px; height: 16px; }
+.packet-pause:focus-visible { outline: 2px solid var(--new); outline-offset: 3px; }
+.packet-static-hint { display: none; }
+.graph .has-issue { --tone: var(--risk); }
+.graph .has-issue .node-box { fill: var(--risk-bg); stroke: var(--risk); }
+.graph .has-issue .node-status { fill: var(--unchanged); }
+.graph .has-issue .node-status-icon { color: var(--unchanged); }
+.graph .node-issue-icon { color: var(--risk); }
+.graph .has-issue .node-art-bg { fill: #513436; }
+/* Brand contrast is independent of status/issue tints. Keep this after them. */
+.graph .brand-surface-dark > .node-art-bg,
+.graph .brand-surface-light > .node-art-bg { fill: var(--brand-tile); }
+.graph .transport-message .connector, .graph .transport-trigger .connector { stroke-dasharray: 5 5; }
+.graph .transport-deploy .connector { stroke-width: 2.8; }
+.graph .transport-config .connector { stroke-dasharray: 2 5; }
+.graph .edge-number-box { fill: #303236; stroke: #9198a2; }
+.graph .edge-number { fill: var(--ink); font: 12px var(--mono); }
+.graph .group-box { fill: #35383e66; stroke: #b2b8c2; stroke-width: 1.5; stroke-dasharray: 7 5; }
+.graph .group-icon { color: #d0d3d8; }
+.graph .group-heading-bg { fill: #2b2d30; }
+.graph .group-label { fill: #e2e3e5; font: 13px var(--mono); }
+.graph-mobile { display: none; }
+.problem-key { display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: 13px; color: var(--risk); background: var(--risk-bg); border-bottom: 1px solid #795052; }
+.issue-notes { margin-top: 16px; padding: 16px; border: 1px solid #b46764; border-radius: 5px; background: var(--risk-bg); }
+.issue-notes h4 { font-size: 16px; color: var(--risk); }
+.issue-notes ul { margin: 10px 0 0; padding: 0; list-style: none; }
+.issue-notes li { display: flex; align-items: flex-start; gap: 10px; margin: 12px 0 0; color: #ead7d7; font-size: 14px; }
+.issue-notes .ui-icon { color: var(--risk); margin-top: 2px; }
+.issue-notes strong { color: var(--ink); }
+.issue-notes p { margin: 3px 0 0; }
+.node-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+.node-details > div { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; color: #d0d3d8; }
+.node-details p { margin: 0; }
+.node-details strong { color: var(--ink); font-weight: 600; display: block; }
+.node-details span { display: block; margin-top: 3px; }
+.group-note { margin: 14px 0 0; color: #d0d3d8; font-size: 14px; }
+.connections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 20px; padding: 13px 0 0; margin-top: 14px; border-top: 1px solid var(--line); }
+.connections li { display: flex; gap: 10px; align-items: flex-start; padding: 7px 0; border: 0; font-size: 14px; }
+.connections li > div { min-width: 0; }
+.connection-index { display: flex; align-items: center; justify-content: center; width: 27px; height: 25px; flex: 0 0 27px; border-radius: 3px; background: var(--chrome); border: 1px solid #767d88; color: #e2e3e5; margin: 0; font: 12px var(--mono); }
+.connection-direction { color: var(--ink); font-weight: 550; }
+.connection-label { color: #d0d3d8; font-size: 14px; margin-top: 3px; }
+.connection-status { font-size: 12px; color: var(--tone); margin-left: auto; flex: 0 0 auto; }
+.transport-label { color: #c5c9d0; font: 12px var(--mono); margin-left: 7px; }
+.element { display: flex; gap: 14px; border-color: var(--tone); background: var(--tint); border-radius: 6px; border-left: 1px solid var(--tone); padding: 16px; }
+.element-art { width: 52px; height: 52px; flex: 0 0 52px; border-radius: 6px; background: #303236; display: flex; align-items: center; justify-content: center; }
+.element-copy { min-width: 0; }
+.element .badge { font-size: 12px; padding: 1px 6px; margin-left: 5px; }
+.element h4 { margin-top: 8px; font-size: 16px; }
+.element p { font-size: 14px; color: #d0d3d8; }
+.entity-kind { color: #cbd0d6; font: 12px var(--mono); text-transform: uppercase; }
+.entity-meta { display: block; color: #e2e3e5; font: 13px var(--mono); margin-top: 5px; overflow-wrap: anywhere; }
+.before-after { gap: 18px; }
+.column-title { color: #cbd0d6; font-size: 12px; }
+.comparison { font-size: 15px; }
+.comparison th { font-size: 12px; color: #cbd0d6; }
+.comparison th, .comparison td { border-bottom-color: var(--line); padding: 12px; }
+.comparison .after-cell { background: color-mix(in srgb, var(--tint) 60%, var(--editor)); }
+.comparison .badge { font-size: 12px; }
+.row-reason { font-size: 14px; color: #d0d3d8; }
+.evidence { margin-top: 16px; padding: 0; font-size: 14px; color: #c5c9d0; }
+.evidence li { font-size: 13px; }
+.impact-item, .manual-item { border-bottom-color: var(--line); padding: 16px 0; }
+.impact-item p, .manual-item p { font-size: 16px; }
+.item-meta { font-size: 14px; gap: 12px; }
+.basis { border-color: #767d88; color: #dedfe3; background: #303236; font-size: 12px; padding: 2px 7px; }
+.manual-item .detail { font-size: 14px; }
+.risk { padding: 18px 20px; margin: 14px 0; border-radius: 6px; border: 1px solid #cb665f; background: var(--risk-bg); }
+.risk h3 { font-size: 19px; }
+.risk p { font-size: 15px; color: #e3d3d3; }
+.risk-severity { font-size: 12px; }
+.footer { font-size: 12px; }
+.skip-link { background: var(--chrome); }
+@media (max-width: 900px) {
+  .shell { display: block; max-width: 900px; padding: 24px; }
+  .tool-rail { display: none; }
+  .navigation { gap: 0 18px; }
+  .context-notes { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .context-notes h3 { margin-top: 6px; }
+  .connections, .node-details { grid-template-columns: minmax(0, 1fr); }
+  .graph-desktop { display: none; }
+  .graph-mobile { display: block; max-width: 490px; margin: 0 auto; }
+  .graph-mobile .node-label { font-size: 19.5px; }
+  .graph-mobile .node-kind { font-size: 14px; }
+  .graph-mobile .node-meta { font-size: 14px; }
+  .graph-mobile .node-status { font-size: 13.5px; }
+}
+@media (max-width: 600px) {
+  .shell { padding: 16px 12px 36px; }
+  .workspace-bar { flex-wrap: wrap; gap: 10px 14px; padding-bottom: 16px; }
+  .workspace-label { display: none; }
+  .workspace-bar .mode { margin-left: auto; font-size: 12px; }
+  .brand-mark { font-size: 16px; }
+  .masthead { padding-top: 22px; }
+  .summary { font-size: 16px; }
+  .report-meta { align-items: flex-start; gap: 16px; }
+  .legend { gap: 12px; }
+  .navigation { gap: 0 18px; margin-top: 16px; }
+  .navigation a { font-size: 13px; padding: 10px 0; }
+  .section-heading h2 { font-size: 21px; }
+  .change, .change + .change { padding: 14px; border-radius: 6px; }
+  .change-heading h3 { font-size: 19px; flex: 1 1 220px; }
+  .change-heading .badge { margin-left: 0; }
+  .code-columns { grid-template-columns: minmax(0, 1fr); }
+  .code-side + .code-side { border-left: 0; border-top: 1px solid var(--line); }
+  .code-filebar { gap: 8px; padding: 10px; }
+  .code-kind { margin-left: 0; }
+  .code-excerpt { font-size: 13px; }
+  .code-lineno { width: 24px; flex-basis: 24px; margin-right: 8px; padding-right: 7px; }
+  .visual-content { padding: 12px; }
+  .visual-heading-note { display: none; }
+  .visual-baseline .visual-heading { flex-wrap: wrap; }
+  .visual-baseline .visual-heading-note { display: block; flex-basis: 100%; margin-left: 0; }
+  .comparison td[data-label]::before { color: #cbd0d6; font-size: 12px; }
+  .comparison tr { border-bottom-color: var(--line); }
+}
+@media print {
+  :root { --canvas: white; --paper: white; --ink: #262626; --muted: #555555; --line: #b7b7b7; }
+  body { color: #262626; background: white; }
+  .shell { display: block; padding: 0; }
+  .workspace-bar, .navigation, .tool-rail { display: none; }
+  .change, .context-block { color: #262626; background: white; border-color: #b7b7b7; box-shadow: none; }
+  .change-description, .why, .context-notes p, .context-notes li, .context-notes h3 { color: #555555; }
+  .why strong { color: #262626; }
+  .graph-desktop { display: block; }
+  .graph-mobile { display: none; }
+  .visual, .code-change, .risk { --paper: #26282b; --ink: #f0f1f2; --line: #494c52; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
+@media (prefers-reduced-motion: reduce), print {
+  .packet-loop-hint, .packet-control { display: none; }
+  .packet-static-hint { display: inline; }
+}
+</style>
+</head>
+<body>
+  <a class="skip-link" href="#report">Skip to report</a>
+  <svg class="entity-sprite" xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="entity-generic" viewBox="0 0 64 64">
+      <rect x="11" y="15" width="42" height="35" rx="8" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <path d="M21 25h22M21 33h14M21 41h19" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="entity-client" viewBox="0 0 64 64">
+      <rect x="10" y="12" width="44" height="33" rx="5" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <path d="M10 22h44M7 51h50M24 45l-2 6m18-6 2 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="16" cy="17" r="1.4" fill="currentColor"/><circle cx="21" cy="17" r="1.4" fill="currentColor"/>
+      <path d="m25 29-5 5 5 5m14-10 5 5-5 5" fill="none" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <symbol id="entity-server" viewBox="0 0 64 64">
+      <rect x="14" y="7" width="36" height="48" rx="5" fill="var(--art-surface)" stroke="currentColor" stroke-width="2.3"/>
+      <path d="M14 23h36M14 39h36M22 15h12M22 31h12M22 47h12M24 59h16" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/>
+      <circle cx="42" cy="15" r="2" fill="var(--art-accent)"/><circle cx="42" cy="31" r="2" fill="var(--art-accent)"/><circle cx="42" cy="47" r="2" fill="var(--art-accent)"/>
+    </symbol>
+    <symbol id="entity-service" viewBox="0 0 64 64">
+      <path d="m32 8 22 12v24L32 56 10 44V20z" fill="var(--art-surface)" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="m10 20 22 12 22-12M32 32v24" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="m23 25 9-5 9 5-9 5z" fill="var(--art-accent)" opacity=".55"/>
+    </symbol>
+    <symbol id="entity-config" viewBox="0 0 64 64">
+      <path d="M17 8h23l11 11v37H17a4 4 0 0 1-4-4V12a4 4 0 0 1 4-4z" fill="var(--art-surface)" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M39 8v12h12M25 27h-3v5l-4 3 4 3v5h3m14-16h3v5l4 3-4 3v5h-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M30 31h5M30 39h5" stroke="var(--art-accent)" stroke-width="3" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="entity-cron" viewBox="0 0 64 64">
+      <rect x="9" y="11" width="41" height="40" rx="6" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <path d="M9 22h41M19 7v9M40 7v9M17 30h4m6 0h4m-14 8h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="44" cy="43" r="13" fill="var(--art-depth)" stroke="currentColor" stroke-width="2"/>
+      <path d="M44 35v8l5 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="entity-ci-worker" viewBox="0 0 64 64">
+      <path d="M32 19V11" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/>
+      <circle cx="32" cy="7" r="3" fill="var(--icon-signal)"/>
+      <rect x="10" y="19" width="44" height="31" rx="6" fill="var(--art-surface)" stroke="currentColor" stroke-width="2.3"/>
+      <path d="M5 29v11m54-11v11M22 56h20" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/>
+      <rect x="19" y="28" width="7" height="6" rx="1.5" fill="currentColor"/><rect x="38" y="28" width="7" height="6" rx="1.5" fill="currentColor"/>
+      <path d="M24 42h16" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="entity-worker" viewBox="0 0 64 64">
+      <path d="M27 8h10l2 7 5 3 7-2 5 8-5 5v6l5 5-5 8-7-2-5 3-2 7H27l-2-7-5-3-7 2-5-8 5-5v-6l-5-5 5-8 7 2 5-3z" fill="var(--art-surface)" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round"/>
+      <circle cx="32" cy="32" r="11" fill="var(--art-depth)" stroke="currentColor" stroke-width="2.3"/>
+      <path d="m29 26 9 6-9 6z" fill="var(--art-accent)"/>
+    </symbol>
+    <symbol id="entity-process" viewBox="0 0 64 64">
+      <rect x="9" y="11" width="46" height="42" rx="7" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <path d="M9 22h46" stroke="currentColor" stroke-width="1.6"/>
+      <circle cx="16" cy="16" r="1.5" fill="currentColor"/><circle cx="22" cy="16" r="1.5" fill="currentColor"/>
+      <path d="m20 29 6 6-6 6M31 41h12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="entity-thread" viewBox="0 0 64 64">
+      <path d="M19 12v39M19 22h16a10 10 0 0 1 10 10v18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="19" cy="12" r="6" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/><circle cx="19" cy="32" r="6" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <circle cx="19" cy="52" r="6" fill="var(--art-accent)" stroke="currentColor" stroke-width="2"/><circle cx="45" cy="51" r="6" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <symbol id="entity-queue" viewBox="0 0 64 64">
+      <rect x="11" y="17" width="42" height="30" rx="4" fill="var(--art-surface)" stroke="currentColor" stroke-width="2.3"/>
+      <rect x="19" y="25" width="6" height="14" rx="1.5" fill="var(--art-depth)" stroke="currentColor" stroke-width="2"/><rect x="29" y="25" width="6" height="14" rx="1.5" fill="var(--art-depth)" stroke="currentColor" stroke-width="2"/>
+      <rect x="39" y="25" width="6" height="14" rx="1.5" fill="var(--art-accent)"/><path d="M2 32h11m-4-4 4 4-4 4M53 32h9m-4-4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="entity-message" viewBox="0 0 64 64">
+      <rect x="9" y="15" width="46" height="34" rx="5" fill="var(--art-surface)" stroke="currentColor" stroke-width="2.3"/>
+      <path d="m11 20 21 16 21-16M11 46l14-13m28 13L39 33" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="entity-database" viewBox="0 0 64 64">
+      <path d="M12 15v33c0 6 40 6 40 0V15" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <ellipse cx="32" cy="15" rx="20" ry="8" fill="var(--art-depth)" stroke="currentColor" stroke-width="2"/>
+      <path d="M12 27c0 10 40 10 40 0M12 38c0 10 40 10 40 0" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <circle cx="44" cy="45" r="2" fill="var(--art-accent)"/>
+    </symbol>
+    <symbol id="entity-storage" viewBox="0 0 64 64">
+      <path d="M13 16h38l5 33a6 6 0 0 1-6 7H14a6 6 0 0 1-6-7z" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <ellipse cx="32" cy="16" rx="19" ry="7" fill="var(--art-depth)" stroke="currentColor" stroke-width="2"/>
+      <path d="M23 31h18M23 39h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="entity-repository" viewBox="0 0 64 64">
+      <path d="M13 9h34a5 5 0 0 1 5 5v40H17a6 6 0 0 1-6-6V15a6 6 0 0 1 2-6z" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <path d="M17 44h35M20 9v35M22 54v5l5-3 5 3v-5M31 23v10m12-15v5a5 5 0 0 1-5 5h-7" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="31" cy="20" r="3" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <circle cx="31" cy="36" r="3" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <circle cx="43" cy="15" r="3" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <symbol id="entity-function" viewBox="0 0 64 64">
+      <rect x="9" y="9" width="46" height="46" rx="12" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <path d="M34 20h-4a5 5 0 0 0-5 5v17a5 5 0 0 1-5 5h-3M18 30h17m4 2 9 11m0-11-9 11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="entity-decision" viewBox="0 0 64 64">
+      <path d="m32 7 25 25-25 25L7 32z" fill="var(--art-surface)" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M27 24a5 5 0 0 1 10 0c0 4-5 4-5 8m0 6v1" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+</svg>
+<svg class="ui-sprite" xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="ui-package" viewBox="0 0 24 24"><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5v9l-9 5-9-5V8l9-5Z" fill="var(--editor)"/><path d="m3 8 9 5 9-5M12 13v9M7.5 5.5l9 5v4" fill="none"/></g></symbol>
+    <symbol id="ui-eye" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></g></symbol>
+    <symbol id="ui-diff" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4H4v6m0-6 6 6m4 10h6v-6m0 6-6-6M14 6h6m-3-3v6M4 18h6"/></g></symbol>
+    <symbol id="ui-wrench" viewBox="0 0 24 24"><path d="M14 5a6 6 0 0 0-7 8L3 17a2.8 2.8 0 0 0 4 4l4-4a6 6 0 0 0 8-7l-4 3-4-4 3-4Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="ui-impact" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h14m-4-4 4 4-4 4M7 12V5h10m-3-3 3 3-3 3M7 12v7h10m-3-3 3 3-3 3"/></g></symbol>
+    <symbol id="ui-alert" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 10 17H2L12 3ZM12 9v4"/><circle cx="12" cy="16.5" r=".8" fill="currentColor" stroke="none"/></g></symbol>
+    <symbol id="ui-arrow-up" viewBox="0 0 24 24"><path d="M12 20V4m-6 6 6-6 6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="ui-code" viewBox="0 0 24 24"><path d="m7 7-5 5 5 5m10-10 5 5-5 5M14 4l-4 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="ui-file" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h9l5 5v13H5V3Zm9 0v6h5M8 13h8m-8 4h6"/></g></symbol>
+    <symbol id="ui-topology" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="5" rx="1"/><rect x="2" y="17" width="7" height="5" rx="1"/><rect x="15" y="17" width="7" height="5" rx="1"/><path d="M12 7v5M5.5 17v-5h13v5"/></g></symbol>
+    <symbol id="ui-info" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><circle cx="12" cy="7" r=".8" fill="currentColor" stroke="none"/></g></symbol>
+    <symbol id="ui-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="ui-minus" viewBox="0 0 24 24"><path d="M4 12h16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  </defs>
+</svg>
+<div class="shell"><div class="workspace-bar"><div class="brand-mark"><svg class="ui-icon" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-code"/></svg><span>Review<span class="brand-muted"> / report</span></span></div><span class="workspace-label">Read-only brief</span><span class="mode"><svg class="ui-icon" width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-info"/></svg>Proposed solution</span></div><aside class="tool-rail"><nav aria-label="Section shortcuts"><a href="#report" class="tool-link" aria-label="Back to report title" title="Back to report title"><svg class="ui-icon" width="21" height="21" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-arrow-up"/></svg></a><span class="tool-divider" aria-hidden="true"></span><a href="#context" aria-label="Context" title="Context" class="tool-link tool-context"><svg class="ui-icon" width="21" height="21" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-eye"/></svg></a><a href="#changes" aria-label="Proposed changes" title="Proposed changes" class="tool-link tool-changes"><svg class="ui-icon" width="21" height="21" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-diff"/></svg></a><a href="#manual" aria-label="Manual changes required" title="Manual changes required" class="tool-link tool-manual"><svg class="ui-icon" width="21" height="21" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-wrench"/></svg></a><a href="#impact" aria-label="Expected impact" title="Expected impact" class="tool-link tool-impact"><svg class="ui-icon" width="21" height="21" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-impact"/></svg></a><a href="#risks" aria-label="Important risks" title="Important risks" class="tool-link tool-risks"><svg class="ui-icon" width="21" height="21" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-alert"/></svg></a></nav></aside><main class="report" id="report"><header class="masthead"><div class="eyebrow">Proposed solution / 4 focused updates</div><h1>Recover transient request failures</h1><p class="summary">One proposed solution: bounded retries for eligible requests, with an explicit time budget and visible retry states.</p><div class="report-meta"><div class="legend" aria-label="Change status legend"><span class="legend-item status-new"><span class="swatch" aria-hidden="true"></span>New</span><span class="legend-item status-changed"><span class="swatch" aria-hidden="true"></span>Changed</span><span class="legend-item status-removed"><span class="swatch" aria-hidden="true"></span>Removed</span><span class="legend-item status-unchanged"><span class="swatch" aria-hidden="true"></span>Existing context</span></div></div><nav class="navigation" aria-label="Report sections"><a href="#context"><svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-eye"/></svg>Context</a><a href="#changes"><svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-diff"/></svg>Proposed changes</a><a href="#manual"><svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-wrench"/></svg>Manual changes required</a><a href="#impact"><svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-impact"/></svg>Expected impact</a><a href="#risks"><svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-alert"/></svg>Important risks</a></nav></header><section class="section" id="context" aria-labelledby="heading-context"><div class="section-heading"><span class="section-number">01</span><svg class="ui-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-eye"/></svg><h2 id="heading-context">Context</h2></div><div class="context-grid"><div class="context-block"><span class="label">Problem / goal</span><p>In this illustrative scenario, a brief upstream failure immediately ends a request even when another attempt could succeed.</p></div><div class="context-block"><span class="label">Comparison baseline</span><p>Hypothetical current behavior: the request service makes one upstream attempt and returns its result or error.</p></div></div><div class="context-notes"><h3>Scope</h3><p>Example proposal for evaluating the report format. No project code, implementation, or test results have been reviewed.</p><h3>Constraints</h3><ul><li>Preserve the response format and successful request path.</li><li>Retry only operations explicitly known to be safe to repeat.</li><li>Keep all attempts and waiting within the existing request deadline.</li></ul><h3>Assumptions / unknowns</h3><ul><li>The request service can identify operation type and distinguish transient failures from permanent errors.</li><li>The upstream system exposes enough information to determine which operations are safe to repeat.</li><li>The numeric limits below are illustrative defaults; they require workload validation.</li></ul></div><figure class="visual visual-baseline"><div class="visual-heading"><svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-topology"/></svg>Baseline behavior<span class="visual-heading-note">Illustrative starting point</span></div><div class="problem-key"><svg class="ui-icon" width="17" height="17" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-alert"/></svg>Problem in existing behavior — not a change status</div><div class="visual-content"><svg class="graph graph-desktop" viewBox="0 0 1166 306" role="img" aria-labelledby="visual-context-desktop-title visual-context-desktop-description"><title id="visual-context-desktop-title">Dependency map</title><desc id="visual-context-desktop-description">Baseline: the client sends a request and the service makes one upstream attempt. A transient failure ends the request immediately, just like a permanent error; there is no recovery step. Each numbered arrow points from its source to its destination. Full details follow.</desc><defs><marker id="visual-context-desktop-new-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--new)"/></marker><marker id="visual-context-desktop-changed-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--changed)"/></marker><marker id="visual-context-desktop-removed-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--removed)"/></marker><marker id="visual-context-desktop-unchanged-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--unchanged)"/></marker><marker id="visual-context-desktop-issue-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--risk)"/></marker></defs><g class="edge status-unchanged transport-request" data-edge="1" data-from="client" data-to="service"><path class="connector-halo" d="M 342 111 L 451 111"/><path class="connector" data-points="342,111;451,111" d="M 342 111 L 451 111" marker-end="url(#visual-context-desktop-unchanged-arrow)"/></g><g class="edge status-unchanged transport-request has-issue" data-edge="2" data-from="service" data-to="upstream"><path class="connector-halo" d="M 710 111 L 819 111"/><path class="connector" data-points="710,111;819,111" d="M 710 111 L 819 111" marker-end="url(#visual-context-desktop-issue-arrow)"/></g><g aria-hidden="true"><rect class="edge-number-box" x="379.5" y="99.0" width="34" height="24" rx="4"/><text class="edge-number" x="396.5" y="115.0" text-anchor="middle">01</text></g><g aria-hidden="true"><rect class="edge-number-box" x="747.5" y="99.0" width="34" height="24" rx="4"/><text class="edge-number" x="764.5" y="115.0" text-anchor="middle">02</text></g><g class="status-unchanged entity-generic" data-node="client"><rect class="node-box" x="92" y="54" width="246" height="114" rx="7"/><rect class="node-art-bg" x="105" y="83" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="109" y="87" width="46" height="46"/><text class="node-kind" x="172" y="76">COMPONENT</text><text class="node-label" x="172" y="102">Client</text><use class="node-status-icon" href="#ui-info" x="171" y="143" width="14" height="14"/><text class="node-status" x="190" y="154">Existing context</text></g><g class="status-unchanged entity-generic" data-node="service"><rect class="node-box" x="460" y="54" width="246" height="114" rx="7"/><rect class="node-art-bg" x="473" y="83" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="477" y="87" width="46" height="46"/><text class="node-kind" x="540" y="76">COMPONENT</text><text class="node-label" x="540" y="102">Request service</text><use class="node-status-icon" href="#ui-info" x="539" y="143" width="14" height="14"/><text class="node-status" x="558" y="154">Existing context</text></g><g class="status-unchanged entity-generic" data-node="upstream"><rect class="node-box" x="828" y="54" width="246" height="114" rx="7"/><rect class="node-art-bg" x="841" y="83" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="845" y="87" width="46" height="46"/><text class="node-kind" x="908" y="76">COMPONENT</text><text class="node-label" x="908" y="102">Upstream system</text><use class="node-status-icon" href="#ui-info" x="907" y="143" width="14" height="14"/><text class="node-status" x="926" y="154">Existing context</text></g></svg><svg class="graph graph-mobile" viewBox="0 0 430 694" role="img" aria-labelledby="visual-context-mobile-title visual-context-mobile-description"><title id="visual-context-mobile-title">Dependency map</title><desc id="visual-context-mobile-description">Baseline: the client sends a request and the service makes one upstream attempt. A transient failure ends the request immediately, just like a permanent error; there is no recovery step. Each numbered arrow points from its source to its destination. Full details follow.</desc><defs><marker id="visual-context-mobile-new-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--new)"/></marker><marker id="visual-context-mobile-changed-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--changed)"/></marker><marker id="visual-context-mobile-removed-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--removed)"/></marker><marker id="visual-context-mobile-unchanged-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--unchanged)"/></marker><marker id="visual-context-mobile-issue-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--risk)"/></marker></defs><g class="edge status-unchanged transport-request" data-edge="1" data-from="client" data-to="service"><path class="connector-halo" d="M 215 172 L 215 239"/><path class="connector" data-points="215,172;215,239" d="M 215 172 L 215 239" marker-end="url(#visual-context-mobile-unchanged-arrow)"/></g><g class="edge status-unchanged transport-request has-issue" data-edge="2" data-from="service" data-to="upstream"><path class="connector-halo" d="M 215 366 L 215 433"/><path class="connector" data-points="215,366;215,433" d="M 215 366 L 215 433" marker-end="url(#visual-context-mobile-issue-arrow)"/></g><g aria-hidden="true"><rect class="edge-number-box" x="198.0" y="193.5" width="34" height="24" rx="4"/><text class="edge-number" x="215.0" y="209.5" text-anchor="middle">01</text></g><g aria-hidden="true"><rect class="edge-number-box" x="198.0" y="387.5" width="34" height="24" rx="4"/><text class="edge-number" x="215.0" y="403.5" text-anchor="middle">02</text></g><g class="status-unchanged entity-generic" data-node="client"><rect class="node-box" x="92" y="54" width="246" height="114" rx="7"/><rect class="node-art-bg" x="105" y="83" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="109" y="87" width="46" height="46"/><text class="node-kind" x="172" y="76">COMPONENT</text><text class="node-label" x="172" y="102">Client</text><use class="node-status-icon" href="#ui-info" x="171" y="143" width="14" height="14"/><text class="node-status" x="190" y="154">Existing context</text></g><g class="status-unchanged entity-generic" data-node="service"><rect class="node-box" x="92" y="248" width="246" height="114" rx="7"/><rect class="node-art-bg" x="105" y="277" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="109" y="281" width="46" height="46"/><text class="node-kind" x="172" y="270">COMPONENT</text><text class="node-label" x="172" y="296">Request service</text><use class="node-status-icon" href="#ui-info" x="171" y="337" width="14" height="14"/><text class="node-status" x="190" y="348">Existing context</text></g><g class="status-unchanged entity-generic" data-node="upstream"><rect class="node-box" x="92" y="442" width="246" height="114" rx="7"/><rect class="node-art-bg" x="105" y="471" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="109" y="475" width="46" height="46"/><text class="node-kind" x="172" y="464">COMPONENT</text><text class="node-label" x="172" y="490">Upstream system</text><use class="node-status-icon" href="#ui-info" x="171" y="531" width="14" height="14"/><text class="node-status" x="190" y="542">Existing context</text></g></svg><div class="node-details"><div><svg class="entity-icon" width="20" height="20" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><use href="#entity-generic"/></svg><p><strong>Client</strong><span>Sends a request and receives the existing response format.</span></p></div><div><svg class="entity-icon" width="20" height="20" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><use href="#entity-generic"/></svg><p><strong>Request service</strong><span>Owns the upstream call and the request deadline.</span></p></div><div><svg class="entity-icon" width="20" height="20" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><use href="#entity-generic"/></svg><p><strong>Upstream system</strong><span>Can return a successful result, a transient failure, or a permanent error.</span></p></div></div><ol class="connections" aria-label="Directed connections"><li class="status-unchanged"><span class="connection-index">01</span><div><span class="connection-direction">Client → Request service</span><span class="connection-label">Existing request / response contract</span></div><span class="connection-status">Existing context</span></li><li class="status-unchanged"><span class="connection-index">02</span><div><span class="connection-direction">Request service → Upstream system</span><span class="connection-label">Current single upstream attempt</span></div><span class="connection-status">Existing context</span></li></ol><div class="issue-notes"><h4>Why this behavior is problematic</h4><ul><li><svg class="ui-icon" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-alert"/></svg><div><strong>Connection 02: Request service → Upstream system</strong><p>A short-lived upstream failure immediately ends the request. Even if a safe repeat could succeed, this baseline makes no second attempt.</p></div></li></ul></div></div><figcaption>Baseline: the client sends a request and the service makes one upstream attempt. A transient failure ends the request immediately, just like a permanent error; there is no recovery step.</figcaption></figure></section><section class="section" id="changes" aria-labelledby="heading-changes"><div class="section-heading"><span class="section-number">02</span><svg class="ui-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-diff"/></svg><h2 id="heading-changes">Proposed changes</h2></div><article class="change status-new" id="change-retry-policy"><div class="change-heading"><span class="change-id">01</span><h3>Introduce a bounded retry policy</h3><span class="badge status-new">New · proposed</span></div><p class="change-description">Add a policy inside the request service. A successful first attempt follows the existing path; an eligible transient failure can receive another attempt.</p><p class="why"><strong>Why.</strong> Some short-lived failures may recover without requiring the client to submit a new request.</p><figure class="visual"><div class="visual-heading"><svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-diff"/></svg>Before / after<span class="visual-heading-note">Relationship view</span></div><div class="visual-content"><div class="before-after"><div><div class="column-title">Before</div><div class="element status-unchanged"><div class="element-art"><svg class="entity-icon" width="42" height="42" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><use href="#entity-generic"/></svg></div><div class="element-copy"><span class="entity-kind">Component</span><span class="badge status-unchanged">Existing context</span><h4>Initial upstream attempt</h4></div></div><div class="element status-removed"><div class="element-art"><svg class="entity-icon" width="42" height="42" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><use href="#entity-generic"/></svg></div><div class="element-copy"><span class="entity-kind">Component</span><span class="badge status-removed">Removed · proposed</span><h4>Every failure immediately ends the request</h4><p>There is no recovery step.</p></div></div><div class="element status-unchanged"><div class="element-art"><svg class="entity-icon" width="42" height="42" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><use href="#entity-generic"/></svg></div><div class="element-copy"><span class="entity-kind">Component</span><span class="badge status-unchanged">Existing context</span><h4>Existing response format</h4></div></div></div><div><div class="column-title">Proposed</div><div class="element status-unchanged"><div class="element-art"><svg class="entity-icon" width="42" height="42" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><use href="#entity-generic"/></svg></div><div class="element-copy"><span class="entity-kind">Component</span><span class="badge status-unchanged">Existing context</span><h4>Initial upstream attempt</h4></div></div><div class="element status-new pulse"><div class="element-art"><svg class="entity-icon" width="42" height="42" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><use href="#entity-generic"/></svg></div><div class="element-copy"><span class="entity-kind">Component</span><span class="badge status-new">New · proposed</span><h4>Bounded retry policy</h4><p>Recover only when eligibility and remaining budget permit it.</p></div></div><div class="element status-unchanged"><div class="element-art"><svg class="entity-icon" width="42" height="42" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><use href="#entity-generic"/></svg></div><div class="element-copy"><span class="entity-kind">Component</span><span class="badge status-unchanged">Existing context</span><h4>Existing response format</h4></div></div></div></div></div><figcaption>The initial attempt and response format stay the same. Recovery is added between an eligible failure and the final result.</figcaption></figure></article><article class="change status-changed" id="change-eligibility"><div class="change-heading"><span class="change-id">02</span><h3>Make retry eligibility explicit</h3><span class="badge status-changed">Changed · proposed</span></div><p class="change-description">Evaluate operation safety, failure classification, remaining attempts, and remaining time before scheduling another attempt. Permanent errors and ineligible operations return immediately.</p><p class="why"><strong>Why.</strong> Recovery must not repeat unsafe work or consume an unbounded amount of time.</p><figure class="visual"><div class="visual-heading"><svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-topology"/></svg>Process flow<span class="visual-heading-note">Relationship view</span></div><div class="visual-content"><svg class="graph graph-desktop" viewBox="0 0 1166 508" role="img" aria-labelledby="visual-eligibility-desktop-title visual-eligibility-desktop-description"><title id="visual-eligibility-desktop-title">Process flow</title><desc id="visual-eligibility-desktop-description">The new decision protects the existing return path. A retry loops back to another attempt only while every eligibility condition holds. Each numbered arrow points from its source to its destination. Full details follow.</desc><defs><marker id="visual-eligibility-desktop-new-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--new)"/></marker><marker id="visual-eligibility-desktop-changed-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--changed)"/></marker><marker id="visual-eligibility-desktop-removed-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--removed)"/></marker><marker id="visual-eligibility-desktop-unchanged-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--unchanged)"/></marker><marker id="visual-eligibility-desktop-issue-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--risk)"/></marker></defs><g class="edge status-unchanged transport-request" data-edge="1" data-from="attempt" data-to="result"><path class="connector-halo" d="M 342 126 L 436 126 Q 442 126 442 132 L 442 184 Q 442 190 448 190 L 790 190 Q 796 190 796 184 L 796 132 Q 796 126 802 126 L 819 126"/><path class="connector" data-points="342,126;442,126;442,190;796,190;796,126;819,126" d="M 342 126 L 436 126 Q 442 126 442 132 L 442 184 Q 442 190 448 190 L 790 190 Q 796 190 796 184 L 796 132 Q 796 126 802 126 L 819 126" marker-end="url(#visual-eligibility-desktop-unchanged-arrow)"/></g><g class="edge status-changed transport-request" data-edge="2" data-from="attempt" data-to="eligible"><path class="connector-halo" d="M 342 100 L 451 100"/><path class="connector" data-points="342,100;451,100" d="M 342 100 L 451 100" marker-end="url(#visual-eligibility-desktop-changed-arrow)"/></g><g class="edge status-new transport-request" data-edge="3" data-from="eligible" data-to="result"><path class="connector-halo" d="M 710 100 L 819 100"/><path class="connector" data-points="710,100;819,100" d="M 710 100 L 819 100" marker-end="url(#visual-eligibility-desktop-new-arrow)"/></g><g class="edge status-new transport-request" data-edge="4" data-from="eligible" data-to="wait"><path class="connector-halo" d="M 710 126 L 732 126 Q 738 126 738 132 L 738 305 Q 738 311 744 311 L 819 311"/><path class="connector" data-points="710,126;738,126;738,311;819,311" d="M 710 126 L 732 126 Q 738 126 738 132 L 738 305 Q 738 311 744 311 L 819 311" marker-end="url(#visual-eligibility-desktop-new-arrow)"/></g><g class="edge status-new transport-request" data-edge="5" data-from="wait" data-to="attempt"><path class="connector-halo" d="M 951 374 L 951 396 Q 951 402 945 402 L 221 402 Q 215 402 215 396 L 215 181"/><path class="connector" data-points="951,374;951,402;215,402;215,181" d="M 951 374 L 951 396 Q 951 402 945 402 L 221 402 Q 215 402 215 396 L 215 181" marker-end="url(#visual-eligibility-desktop-new-arrow)"/><path class="connector-emphasis" d="M 951 374 L 951 396 Q 951 402 945 402 L 221 402 Q 215 402 215 396 L 215 181"/></g><g aria-hidden="true"><rect class="edge-number-box" x="602.0" y="178.0" width="34" height="24" rx="4"/><text class="edge-number" x="619.0" y="194.0" text-anchor="middle">01</text></g><g aria-hidden="true"><rect class="edge-number-box" x="379.5" y="88.0" width="34" height="24" rx="4"/><text class="edge-number" x="396.5" y="104.0" text-anchor="middle">02</text></g><g aria-hidden="true"><rect class="edge-number-box" x="747.5" y="88.0" width="34" height="24" rx="4"/><text class="edge-number" x="764.5" y="104.0" text-anchor="middle">03</text></g><g aria-hidden="true"><rect class="edge-number-box" x="721.0" y="206.5" width="34" height="24" rx="4"/><text class="edge-number" x="738.0" y="222.5" text-anchor="middle">04</text></g><g aria-hidden="true"><rect class="edge-number-box" x="566.0" y="390.0" width="34" height="24" rx="4"/><text class="edge-number" x="583.0" y="406.0" text-anchor="middle">05</text></g><g class="status-unchanged entity-generic" data-node="attempt"><rect class="node-box" x="92" y="54" width="246" height="118" rx="7"/><rect class="node-art-bg" x="105" y="83" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="109" y="87" width="46" height="46"/><text class="node-kind" x="172" y="76">COMPONENT</text><text class="node-label" x="172" y="102">Make upstream</text><text class="node-label" x="172" y="124">attempt</text><use class="node-status-icon" href="#ui-info" x="171" y="147" width="14" height="14"/><text class="node-status" x="190" y="158">Existing context</text></g><g class="status-unchanged entity-generic" data-node="result"><rect class="node-box" x="828" y="54" width="246" height="118" rx="7"/><rect class="node-art-bg" x="841" y="83" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="845" y="87" width="46" height="46"/><text class="node-kind" x="908" y="76">COMPONENT</text><text class="node-label" x="908" y="102">Return existing</text><text class="node-label" x="908" y="124">result</text><use class="node-status-icon" href="#ui-info" x="907" y="147" width="14" height="14"/><text class="node-status" x="926" y="158">Existing context</text></g><g class="status-new entity-generic" data-node="eligible"><rect class="node-box" x="460" y="54" width="246" height="118" rx="7"/><rect class="node-art-bg" x="473" y="83" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="477" y="87" width="46" height="46"/><rect class="node-emphasis" x="458" y="52" width="250" height="122" rx="9"/><text class="node-kind" x="540" y="76">COMPONENT</text><text class="node-label" x="540" y="102">Check retry</text><text class="node-label" x="540" y="124">eligibility</text><use class="node-status-icon" href="#ui-plus" x="539" y="147" width="14" height="14"/><text class="node-status" x="558" y="158">New · proposed</text></g><g class="status-new entity-generic" data-node="wait"><rect class="node-box" x="828" y="252" width="246" height="118" rx="7"/><rect class="node-art-bg" x="841" y="281" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="845" y="285" width="46" height="46"/><text class="node-kind" x="908" y="274">COMPONENT</text><text class="node-label" x="908" y="300">Wait within</text><text class="node-label" x="908" y="322">deadline</text><use class="node-status-icon" href="#ui-plus" x="907" y="345" width="14" height="14"/><text class="node-status" x="926" y="356">New · proposed</text></g></svg><svg class="graph graph-mobile" viewBox="0 0 430 904" role="img" aria-labelledby="visual-eligibility-mobile-title visual-eligibility-mobile-description"><title id="visual-eligibility-mobile-title">Process flow</title><desc id="visual-eligibility-mobile-description">The new decision protects the existing return path. A retry loops back to another attempt only while every eligibility condition holds. Each numbered arrow points from its source to its destination. Full details follow.</desc><defs><marker id="visual-eligibility-mobile-new-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--new)"/></marker><marker id="visual-eligibility-mobile-changed-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--changed)"/></marker><marker id="visual-eligibility-mobile-removed-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--removed)"/></marker><marker id="visual-eligibility-mobile-unchanged-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--unchanged)"/></marker><marker id="visual-eligibility-mobile-issue-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--risk)"/></marker></defs><g class="edge status-unchanged transport-request" data-edge="1" data-from="attempt" data-to="result"><path class="connector-halo" d="M 342 113 L 364 113 Q 370 113 370 119 L 370 503 Q 370 509 364 509 L 347 509"/><path class="connector" data-points="342,113;370,113;370,509;347,509" d="M 342 113 L 364 113 Q 370 113 370 119 L 370 503 Q 370 509 364 509 L 347 509" marker-end="url(#visual-eligibility-mobile-unchanged-arrow)"/></g><g class="edge status-changed transport-request" data-edge="2" data-from="attempt" data-to="eligible"><path class="connector-halo" d="M 215 176 L 215 243"/><path class="connector" data-points="215,176;215,243" d="M 215 176 L 215 243" marker-end="url(#visual-eligibility-mobile-changed-arrow)"/></g><g class="edge status-new transport-request" data-edge="3" data-from="eligible" data-to="result"><path class="connector-halo" d="M 215 374 L 215 441"/><path class="connector" data-points="215,374;215,441" d="M 215 374 L 215 441" marker-end="url(#visual-eligibility-mobile-new-arrow)"/></g><g class="edge status-new transport-request" data-edge="4" data-from="eligible" data-to="wait"><path class="connector-halo" d="M 342 311 L 402 311 Q 408 311 408 317 L 408 701 Q 408 707 402 707 L 347 707"/><path class="connector" data-points="342,311;408,311;408,707;347,707" d="M 342 311 L 402 311 Q 408 311 408 317 L 408 701 Q 408 707 402 707 L 347 707" marker-end="url(#visual-eligibility-mobile-new-arrow)"/></g><g class="edge status-new transport-request" data-edge="5" data-from="wait" data-to="attempt"><path class="connector-halo" d="M 88 707 L 66 707 Q 60 707 60 701 L 60 119 Q 60 113 66 113 L 83 113"/><path class="connector" data-points="88,707;60,707;60,113;83,113" d="M 88 707 L 66 707 Q 60 707 60 701 L 60 119 Q 60 113 66 113 L 83 113" marker-end="url(#visual-eligibility-mobile-new-arrow)"/><path class="connector-emphasis" d="M 88 707 L 66 707 Q 60 707 60 701 L 60 119 Q 60 113 66 113 L 83 113"/></g><g aria-hidden="true"><rect class="edge-number-box" x="353.0" y="219.8" width="34" height="24" rx="4"/><text class="edge-number" x="370.0" y="235.8" text-anchor="middle">01</text></g><g aria-hidden="true"><rect class="edge-number-box" x="198.0" y="197.5" width="34" height="24" rx="4"/><text class="edge-number" x="215.0" y="213.5" text-anchor="middle">02</text></g><g aria-hidden="true"><rect class="edge-number-box" x="198.0" y="395.5" width="34" height="24" rx="4"/><text class="edge-number" x="215.0" y="411.5" text-anchor="middle">03</text></g><g aria-hidden="true"><rect class="edge-number-box" x="391.0" y="497.0" width="34" height="24" rx="4"/><text class="edge-number" x="408.0" y="513.0" text-anchor="middle">04</text></g><g aria-hidden="true"><rect class="edge-number-box" x="43.0" y="398.0" width="34" height="24" rx="4"/><text class="edge-number" x="60.0" y="414.0" text-anchor="middle">05</text></g><g class="status-unchanged entity-generic" data-node="attempt"><rect class="node-box" x="92" y="54" width="246" height="118" rx="7"/><rect class="node-art-bg" x="105" y="83" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="109" y="87" width="46" height="46"/><text class="node-kind" x="172" y="76">COMPONENT</text><text class="node-label" x="172" y="102">Make upstream</text><text class="node-label" x="172" y="124">attempt</text><use class="node-status-icon" href="#ui-info" x="171" y="147" width="14" height="14"/><text class="node-status" x="190" y="158">Existing context</text></g><g class="status-unchanged entity-generic" data-node="result"><rect class="node-box" x="92" y="450" width="246" height="118" rx="7"/><rect class="node-art-bg" x="105" y="479" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="109" y="483" width="46" height="46"/><text class="node-kind" x="172" y="472">COMPONENT</text><text class="node-label" x="172" y="498">Return existing</text><text class="node-label" x="172" y="520">result</text><use class="node-status-icon" href="#ui-info" x="171" y="543" width="14" height="14"/><text class="node-status" x="190" y="554">Existing context</text></g><g class="status-new entity-generic" data-node="eligible"><rect class="node-box" x="92" y="252" width="246" height="118" rx="7"/><rect class="node-art-bg" x="105" y="281" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="109" y="285" width="46" height="46"/><rect class="node-emphasis" x="90" y="250" width="250" height="122" rx="9"/><text class="node-kind" x="172" y="274">COMPONENT</text><text class="node-label" x="172" y="300">Check retry</text><text class="node-label" x="172" y="322">eligibility</text><use class="node-status-icon" href="#ui-plus" x="171" y="345" width="14" height="14"/><text class="node-status" x="190" y="356">New · proposed</text></g><g class="status-new entity-generic" data-node="wait"><rect class="node-box" x="92" y="648" width="246" height="118" rx="7"/><rect class="node-art-bg" x="105" y="677" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="109" y="681" width="46" height="46"/><text class="node-kind" x="172" y="670">COMPONENT</text><text class="node-label" x="172" y="696">Wait within</text><text class="node-label" x="172" y="718">deadline</text><use class="node-status-icon" href="#ui-plus" x="171" y="741" width="14" height="14"/><text class="node-status" x="190" y="752">New · proposed</text></g></svg><div class="node-details"><div><svg class="entity-icon" width="20" height="20" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><use href="#entity-generic"/></svg><p><strong>Check retry eligibility</strong><span>Safe operation + transient error + attempt budget + time budget.</span></p></div><div><svg class="entity-icon" width="20" height="20" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><use href="#entity-generic"/></svg><p><strong>Wait within deadline</strong><span>Apply bounded backoff and jitter before the next attempt.</span></p></div></div><ol class="connections" aria-label="Directed connections"><li class="status-unchanged"><span class="connection-index">01</span><div><span class="connection-direction">Make upstream attempt → Return existing result</span><span class="connection-label">Success</span></div><span class="connection-status">Existing context</span></li><li class="status-changed"><span class="connection-index">02</span><div><span class="connection-direction">Make upstream attempt → Check retry eligibility</span><span class="connection-label">Failure</span></div><span class="connection-status">Changed</span></li><li class="status-new"><span class="connection-index">03</span><div><span class="connection-direction">Check retry eligibility → Return existing result</span><span class="connection-label">Any eligibility condition fails</span></div><span class="connection-status">New</span></li><li class="status-new"><span class="connection-index">04</span><div><span class="connection-direction">Check retry eligibility → Wait within deadline</span><span class="connection-label">All eligibility conditions hold</span></div><span class="connection-status">New</span></li><li class="status-new"><span class="connection-index">05</span><div><span class="connection-direction">Wait within deadline → Make upstream attempt</span><span class="connection-label">Wait ends and time budget still permits an attempt</span></div><span class="connection-status">New</span></li></ol></div><figcaption>The new decision protects the existing return path. A retry loops back to another attempt only while every eligibility condition holds.</figcaption></figure></article><article class="change status-changed" id="change-limits"><div class="change-heading"><span class="change-id">03</span><h3>Define limits and preserve the external contract</h3><span class="badge status-changed">Changed · proposed</span></div><p class="change-description">Use an explicit attempt cap and bounded waits. Keep the original request deadline and response shape. These example values describe a proposal, not measured production settings.</p><p class="why"><strong>Why.</strong> A small, visible policy is easier to reason about and tune than implicit recovery behavior.</p><figure class="visual"><div class="visual-heading"><svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-diff"/></svg>Rules / data comparison<span class="visual-heading-note">Relationship view</span></div><div class="visual-content"><table class="comparison"><thead><tr><th scope="col">Element / rule</th><th scope="col">Before</th><th scope="col">Proposed</th></tr></thead><tbody><tr class="status-changed"><td><div class="row-name">Total attempts</div><span class="badge status-changed">Changed · proposed</span></td><td data-label="Before">1</td><td class="after-cell" data-label="Proposed">At most 3, including the first attempt<p class="row-reason">Why: Bound additional upstream work.</p></td></tr><tr class="status-new"><td><div class="row-name">Wait between attempts</div><span class="badge status-new">New · proposed</span></td><td data-label="Before">Not present</td><td class="after-cell" data-label="Proposed">200 ms, then 400 ms, when the remaining deadline permits<p class="row-reason">Why: Leave a short recovery interval.</p></td></tr><tr class="status-new"><td><div class="row-name">Jitter</div><span class="badge status-new">New · proposed</span></td><td data-label="Before">Not present</td><td class="after-cell" data-label="Proposed">An additional 0–100 ms per wait<p class="row-reason">Why: Reduce synchronized retry attempts.</p></td></tr><tr class="status-unchanged"><td><div class="row-name">Request deadline</div><span class="badge status-unchanged">Existing context</span></td><td data-label="Before">Existing overall deadline</td><td class="after-cell" data-label="Proposed">Existing overall deadline</td></tr><tr class="status-unchanged"><td><div class="row-name">Response shape</div><span class="badge status-unchanged">Existing context</span></td><td data-label="Before">Existing payload / error format</td><td class="after-cell" data-label="Proposed">Existing payload / error format</td></tr></tbody></table></div><figcaption>Recovery settings change; externally visible response structure and the overall deadline remain the constraints.</figcaption></figure></article><article class="change status-new" id="change-states"><div class="change-heading"><span class="change-id">04</span><h3>Record retry states for operational diagnosis</h3><span class="badge status-new">New · proposed</span></div><p class="change-description">Track attempting, waiting, and finished states with the attempt count. Record why recovery stopped without adding fields to the client response.</p><p class="why"><strong>Why.</strong> Operators need to distinguish a permanent error from an exhausted retry budget when investigating failures.</p><figure class="visual"><div class="visual-heading"><svg class="ui-icon" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-topology"/></svg>State transitions<span class="visual-heading-note">Relationship view</span></div><div class="visual-content"><svg class="graph graph-desktop" viewBox="0 0 1166 310" role="img" aria-labelledby="visual-states-desktop-title visual-states-desktop-description"><title id="visual-states-desktop-title">State transitions</title><desc id="visual-states-desktop-description">Waiting is the new state. Completion includes a result or a recorded stop reason; another attempt always passes through the policy checks. Each numbered arrow points from its source to its destination. Full details follow.</desc><defs><marker id="visual-states-desktop-new-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--new)"/></marker><marker id="visual-states-desktop-changed-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--changed)"/></marker><marker id="visual-states-desktop-removed-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--removed)"/></marker><marker id="visual-states-desktop-unchanged-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--unchanged)"/></marker><marker id="visual-states-desktop-issue-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--risk)"/></marker></defs><g class="edge status-new transport-request" data-edge="1" data-from="attempting" data-to="waiting"><path class="connector-halo" d="M 342 123.33 L 451 123.33"/><path class="connector" data-points="342,123.33;451,123.33" d="M 342 123.33 L 451 123.33" marker-end="url(#visual-states-desktop-new-arrow)"/></g><g class="edge status-new transport-request" data-edge="2" data-from="waiting" data-to="attempting"><path class="connector-halo" d="M 583 176 L 583 198 Q 583 204 577 204 L 221 204 Q 215 204 215 198 L 215 177"/><path class="connector" data-points="583,176;583,204;215,204;215,177" d="M 583 176 L 583 198 Q 583 204 577 204 L 221 204 Q 215 204 215 198 L 215 177" marker-end="url(#visual-states-desktop-new-arrow)"/></g><g class="edge status-new transport-request" data-edge="3" data-from="waiting" data-to="finished"><path class="connector-halo" d="M 710 123.33 L 819 123.33"/><path class="connector" data-points="710,123.33;819,123.33" d="M 710 123.33 L 819 123.33" marker-end="url(#visual-states-desktop-new-arrow)"/></g><g class="edge status-changed transport-request" data-edge="4" data-from="attempting" data-to="finished"><path class="connector-halo" d="M 342 98.67 L 364 98.67 Q 370 98.67 370 92.67 L 370 42 Q 370 36 376 36 L 790 36 Q 796 36 796 42 L 796 92.67 Q 796 98.67 802 98.67 L 819 98.67"/><path class="connector" data-points="342,98.67;370,98.67;370,36;796,36;796,98.67;819,98.67" d="M 342 98.67 L 364 98.67 Q 370 98.67 370 92.67 L 370 42 Q 370 36 376 36 L 790 36 Q 796 36 796 42 L 796 92.67 Q 796 98.67 802 98.67 L 819 98.67" marker-end="url(#visual-states-desktop-changed-arrow)"/></g><g aria-hidden="true"><rect class="edge-number-box" x="379.5" y="111.33" width="34" height="24" rx="4"/><text class="edge-number" x="396.5" y="127.33" text-anchor="middle">01</text></g><g aria-hidden="true"><rect class="edge-number-box" x="382.0" y="192.0" width="34" height="24" rx="4"/><text class="edge-number" x="399.0" y="208.0" text-anchor="middle">02</text></g><g aria-hidden="true"><rect class="edge-number-box" x="747.5" y="111.33" width="34" height="24" rx="4"/><text class="edge-number" x="764.5" y="127.33" text-anchor="middle">03</text></g><g aria-hidden="true"><rect class="edge-number-box" x="566.0" y="24.0" width="34" height="24" rx="4"/><text class="edge-number" x="583.0" y="40.0" text-anchor="middle">04</text></g><g class="status-unchanged entity-generic" data-node="attempting"><rect class="node-box" x="92" y="54" width="246" height="114" rx="7"/><rect class="node-art-bg" x="105" y="83" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="109" y="87" width="46" height="46"/><text class="node-kind" x="172" y="76">COMPONENT</text><text class="node-label" x="172" y="102">Attempting</text><use class="node-status-icon" href="#ui-info" x="171" y="143" width="14" height="14"/><text class="node-status" x="190" y="154">Existing context</text></g><g class="status-new entity-generic" data-node="waiting"><rect class="node-box" x="460" y="54" width="246" height="118" rx="7"/><rect class="node-art-bg" x="473" y="83" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="477" y="87" width="46" height="46"/><text class="node-kind" x="540" y="76">COMPONENT</text><text class="node-label" x="540" y="102">Waiting to</text><text class="node-label" x="540" y="124">retry</text><use class="node-status-icon" href="#ui-plus" x="539" y="147" width="14" height="14"/><text class="node-status" x="558" y="158">New · proposed</text></g><g class="status-changed entity-generic" data-node="finished"><rect class="node-box" x="828" y="54" width="246" height="114" rx="7"/><rect class="node-art-bg" x="841" y="83" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="845" y="87" width="46" height="46"/><text class="node-kind" x="908" y="76">COMPONENT</text><text class="node-label" x="908" y="102">Finished</text><use class="node-status-icon" href="#ui-diff" x="907" y="143" width="14" height="14"/><text class="node-status" x="926" y="154">Changed · proposed</text></g></svg><svg class="graph graph-mobile" viewBox="0 0 430 698" role="img" aria-labelledby="visual-states-mobile-title visual-states-mobile-description"><title id="visual-states-mobile-title">State transitions</title><desc id="visual-states-mobile-description">Waiting is the new state. Completion includes a result or a recorded stop reason; another attempt always passes through the policy checks. Each numbered arrow points from its source to its destination. Full details follow.</desc><defs><marker id="visual-states-mobile-new-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--new)"/></marker><marker id="visual-states-mobile-changed-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--changed)"/></marker><marker id="visual-states-mobile-removed-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--removed)"/></marker><marker id="visual-states-mobile-unchanged-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--unchanged)"/></marker><marker id="visual-states-mobile-issue-arrow" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="12" markerHeight="12" markerUnits="userSpaceOnUse" orient="auto"><path d="M 1 1 L 11 6 L 1 11 z" fill="var(--risk)"/></marker></defs><g class="edge status-new transport-request" data-edge="1" data-from="attempting" data-to="waiting"><path class="connector-halo" d="M 215 172 L 215 239"/><path class="connector" data-points="215,172;215,239" d="M 215 172 L 215 239" marker-end="url(#visual-states-mobile-new-arrow)"/></g><g class="edge status-new transport-request" data-edge="2" data-from="waiting" data-to="attempting"><path class="connector-halo" d="M 88 307 L 66 307 Q 60 307 60 301 L 60 117 Q 60 111 66 111 L 83 111"/><path class="connector" data-points="88,307;60,307;60,111;83,111" d="M 88 307 L 66 307 Q 60 307 60 301 L 60 117 Q 60 111 66 111 L 83 111" marker-end="url(#visual-states-mobile-new-arrow)"/></g><g class="edge status-new transport-request" data-edge="3" data-from="waiting" data-to="finished"><path class="connector-halo" d="M 215 370 L 215 437"/><path class="connector" data-points="215,370;215,437" d="M 215 370 L 215 437" marker-end="url(#visual-states-mobile-new-arrow)"/></g><g class="edge status-changed transport-request" data-edge="4" data-from="attempting" data-to="finished"><path class="connector-halo" d="M 342 111 L 364 111 Q 370 111 370 117 L 370 497 Q 370 503 364 503 L 347 503"/><path class="connector" data-points="342,111;370,111;370,503;347,503" d="M 342 111 L 364 111 Q 370 111 370 117 L 370 497 Q 370 503 364 503 L 347 503" marker-end="url(#visual-states-mobile-changed-arrow)"/></g><g aria-hidden="true"><rect class="edge-number-box" x="198.0" y="193.5" width="34" height="24" rx="4"/><text class="edge-number" x="215.0" y="209.5" text-anchor="middle">01</text></g><g aria-hidden="true"><rect class="edge-number-box" x="43.0" y="197.0" width="34" height="24" rx="4"/><text class="edge-number" x="60.0" y="213.0" text-anchor="middle">02</text></g><g aria-hidden="true"><rect class="edge-number-box" x="198.0" y="391.5" width="34" height="24" rx="4"/><text class="edge-number" x="215.0" y="407.5" text-anchor="middle">03</text></g><g aria-hidden="true"><rect class="edge-number-box" x="353.0" y="295.0" width="34" height="24" rx="4"/><text class="edge-number" x="370.0" y="311.0" text-anchor="middle">04</text></g><g class="status-unchanged entity-generic" data-node="attempting"><rect class="node-box" x="92" y="54" width="246" height="114" rx="7"/><rect class="node-art-bg" x="105" y="83" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="109" y="87" width="46" height="46"/><text class="node-kind" x="172" y="76">COMPONENT</text><text class="node-label" x="172" y="102">Attempting</text><use class="node-status-icon" href="#ui-info" x="171" y="143" width="14" height="14"/><text class="node-status" x="190" y="154">Existing context</text></g><g class="status-new entity-generic" data-node="waiting"><rect class="node-box" x="92" y="248" width="246" height="118" rx="7"/><rect class="node-art-bg" x="105" y="277" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="109" y="281" width="46" height="46"/><text class="node-kind" x="172" y="270">COMPONENT</text><text class="node-label" x="172" y="296">Waiting to</text><text class="node-label" x="172" y="318">retry</text><use class="node-status-icon" href="#ui-plus" x="171" y="341" width="14" height="14"/><text class="node-status" x="190" y="352">New · proposed</text></g><g class="status-changed entity-generic" data-node="finished"><rect class="node-box" x="92" y="446" width="246" height="114" rx="7"/><rect class="node-art-bg" x="105" y="475" width="54" height="54" rx="7"/><use class="node-art" href="#entity-generic" x="109" y="479" width="46" height="46"/><text class="node-kind" x="172" y="468">COMPONENT</text><text class="node-label" x="172" y="494">Finished</text><use class="node-status-icon" href="#ui-diff" x="171" y="535" width="14" height="14"/><text class="node-status" x="190" y="546">Changed · proposed</text></g></svg><div class="node-details"><div><svg class="entity-icon" width="20" height="20" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><use href="#entity-generic"/></svg><p><strong>Finished</strong><span>Success, ineligible failure, or exhausted budget, with a recorded reason.</span></p></div></div><ol class="connections" aria-label="Directed connections"><li class="status-new"><span class="connection-index">01</span><div><span class="connection-direction">Attempting → Waiting to retry</span><span class="connection-label">Eligible failure and remaining budget</span></div><span class="connection-status">New</span></li><li class="status-new"><span class="connection-index">02</span><div><span class="connection-direction">Waiting to retry → Attempting</span><span class="connection-label">Wait completes; budget permits another attempt</span></div><span class="connection-status">New</span></li><li class="status-new"><span class="connection-index">03</span><div><span class="connection-direction">Waiting to retry → Finished</span><span class="connection-label">Deadline or cancellation stops recovery</span></div><span class="connection-status">New</span></li><li class="status-changed"><span class="connection-index">04</span><div><span class="connection-direction">Attempting → Finished</span><span class="connection-label">Success or retry policy declines recovery</span></div><span class="connection-status">Changed</span></li></ol></div><figcaption>Waiting is the new state. Completion includes a result or a recorded stop reason; another attempt always passes through the policy checks.</figcaption></figure></article></section><section class="section" id="manual" aria-labelledby="heading-manual"><div class="section-heading"><span class="section-number">03</span><svg class="ui-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-wrench"/></svg><h2 id="heading-manual">Manual changes required</h2></div><div class="manual-item"><div class="item-meta"><span class="mono">Step 01</span><a href="#change-eligibility">Make retry eligibility explicit</a></div><p>Confirm and document which upstream operations are safe to repeat before enabling retries for them.</p><p class="detail"><strong>Prerequisite:</strong> The relevant upstream operation contracts are available.</p><p class="detail"><strong>Verify:</strong> Every enabled operation has an explicit safety rule; unknown operations remain ineligible.</p></div><div class="manual-item"><div class="item-meta"><span class="mono">Step 02</span><a href="#change-limits">Define limits and preserve the external contract</a></div><p>Review the proposed attempt and waiting limits against the service deadline and representative upstream latency.</p><p class="detail"><strong>Prerequisite:</strong> Representative request latency and the existing deadline are known.</p><p class="detail"><strong>Verify:</strong> The selected settings preserve the overall deadline and have been exercised under transient failure.</p></div></section><section class="section" id="impact" aria-labelledby="heading-impact"><div class="section-heading"><span class="section-number">04</span><svg class="ui-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-impact"/></svg><h2 id="heading-impact">Expected impact</h2></div><div class="impact-item"><div class="item-meta"><a href="#change-retry-policy">Introduce a bounded retry policy</a><span class="basis">Expected</span></div><p>Some eligible transient failures may recover inside the original request. A successful first attempt keeps the existing behavior; no recovery rate is claimed without measurement.</p></div><div class="impact-item"><div class="item-meta"><a href="#change-eligibility">Make retry eligibility explicit</a><span class="basis">Expected</span></div><p>Unsafe operations and permanent failures end immediately. Correct failure classification becomes a dependency of recovery behavior.</p></div><div class="impact-item"><div class="item-meta"><a href="#change-limits">Define limits and preserve the external contract</a><span class="basis">Expected</span></div><p>Eligible failures can produce additional upstream calls and waiting time. The policy caps total attempts and keeps recovery within the original deadline.</p></div><div class="impact-item"><div class="item-meta"><a href="#change-states">Record retry states for operational diagnosis</a><span class="basis">Expected</span></div><p>Operational records gain attempt counts and stop reasons. Client payloads remain unchanged; logging volume may increase for retried requests.</p></div></section><section class="section" id="risks" aria-labelledby="heading-risks"><div class="section-heading"><span class="section-number">05</span><svg class="ui-icon" width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#ui-alert"/></svg><h2 id="heading-risks">Important risks</h2></div><article class="risk"><div class="item-meta"><span class="risk-severity">important risk</span><a href="#change-eligibility">Make retry eligibility explicit</a></div><h3>Repeating an unsafe operation</h3><p><strong>When:</strong> An operation is incorrectly classified as safe to repeat, and its first attempt already performed a side effect.</p><p><strong>Consequence:</strong> A retry can perform the side effect again.</p><p><strong>Mitigation:</strong> Use an explicit eligibility rule for each operation and leave unknown operations ineligible. Verify safety with the upstream contract.</p></article><article class="risk"><div class="item-meta"><span class="risk-severity">important risk</span><a href="#change-limits">Define limits and preserve the external contract</a></div><h3>Amplifying an upstream outage</h3><p><strong>When:</strong> Many concurrent requests encounter the same transient failure and become eligible to retry.</p><p><strong>Consequence:</strong> Additional attempts can increase load on the upstream system while it is already unhealthy.</p><p><strong>Mitigation:</strong> Keep the attempt cap and jitter, measure behavior under load, and revisit eligibility or limits if the upstream cannot tolerate the extra work.</p></article></section><footer class="footer"><span>Proposed design · implementation and outcomes are not verified.</span><span>Review report / v1</span></footer></main></div>
+</body>
+</html>

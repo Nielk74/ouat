@@ -1,0 +1,94 @@
+<svg class="entity-sprite" xmlns="http://www.w3.org/2000/svg" width="0" height="0" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="entity-generic" viewBox="0 0 64 64">
+      <rect x="11" y="15" width="42" height="35" rx="8" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <path d="M21 25h22M21 33h14M21 41h19" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="entity-client" viewBox="0 0 64 64">
+      <rect x="10" y="12" width="44" height="33" rx="5" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <path d="M10 22h44M7 51h50M24 45l-2 6m18-6 2 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="16" cy="17" r="1.4" fill="currentColor"/><circle cx="21" cy="17" r="1.4" fill="currentColor"/>
+      <path d="m25 29-5 5 5 5m14-10 5 5-5 5" fill="none" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <symbol id="entity-server" viewBox="0 0 64 64">
+      <rect x="14" y="7" width="36" height="48" rx="5" fill="var(--art-surface)" stroke="currentColor" stroke-width="2.3"/>
+      <path d="M14 23h36M14 39h36M22 15h12M22 31h12M22 47h12M24 59h16" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/>
+      <circle cx="42" cy="15" r="2" fill="var(--art-accent)"/><circle cx="42" cy="31" r="2" fill="var(--art-accent)"/><circle cx="42" cy="47" r="2" fill="var(--art-accent)"/>
+    </symbol>
+    <symbol id="entity-service" viewBox="0 0 64 64">
+      <path d="m32 8 22 12v24L32 56 10 44V20z" fill="var(--art-surface)" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="m10 20 22 12 22-12M32 32v24" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="m23 25 9-5 9 5-9 5z" fill="var(--art-accent)" opacity=".55"/>
+    </symbol>
+    <symbol id="entity-config" viewBox="0 0 64 64">
+      <path d="M17 8h23l11 11v37H17a4 4 0 0 1-4-4V12a4 4 0 0 1 4-4z" fill="var(--art-surface)" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M39 8v12h12M25 27h-3v5l-4 3 4 3v5h3m14-16h3v5l4 3-4 3v5h-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M30 31h5M30 39h5" stroke="var(--art-accent)" stroke-width="3" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="entity-cron" viewBox="0 0 64 64">
+      <rect x="9" y="11" width="41" height="40" rx="6" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <path d="M9 22h41M19 7v9M40 7v9M17 30h4m6 0h4m-14 8h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="44" cy="43" r="13" fill="var(--art-depth)" stroke="currentColor" stroke-width="2"/>
+      <path d="M44 35v8l5 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="entity-ci-worker" viewBox="0 0 64 64">
+      <path d="M32 19V11" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/>
+      <circle cx="32" cy="7" r="3" fill="var(--icon-signal)"/>
+      <rect x="10" y="19" width="44" height="31" rx="6" fill="var(--art-surface)" stroke="currentColor" stroke-width="2.3"/>
+      <path d="M5 29v11m54-11v11M22 56h20" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/>
+      <rect x="19" y="28" width="7" height="6" rx="1.5" fill="currentColor"/><rect x="38" y="28" width="7" height="6" rx="1.5" fill="currentColor"/>
+      <path d="M24 42h16" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="entity-worker" viewBox="0 0 64 64">
+      <path d="M27 8h10l2 7 5 3 7-2 5 8-5 5v6l5 5-5 8-7-2-5 3-2 7H27l-2-7-5-3-7 2-5-8 5-5v-6l-5-5 5-8 7 2 5-3z" fill="var(--art-surface)" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round"/>
+      <circle cx="32" cy="32" r="11" fill="var(--art-depth)" stroke="currentColor" stroke-width="2.3"/>
+      <path d="m29 26 9 6-9 6z" fill="var(--art-accent)"/>
+    </symbol>
+    <symbol id="entity-process" viewBox="0 0 64 64">
+      <rect x="9" y="11" width="46" height="42" rx="7" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <path d="M9 22h46" stroke="currentColor" stroke-width="1.6"/>
+      <circle cx="16" cy="16" r="1.5" fill="currentColor"/><circle cx="22" cy="16" r="1.5" fill="currentColor"/>
+      <path d="m20 29 6 6-6 6M31 41h12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="entity-thread" viewBox="0 0 64 64">
+      <path d="M19 12v39M19 22h16a10 10 0 0 1 10 10v18" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="19" cy="12" r="6" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/><circle cx="19" cy="32" r="6" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <circle cx="19" cy="52" r="6" fill="var(--art-accent)" stroke="currentColor" stroke-width="2"/><circle cx="45" cy="51" r="6" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <symbol id="entity-queue" viewBox="0 0 64 64">
+      <rect x="11" y="17" width="42" height="30" rx="4" fill="var(--art-surface)" stroke="currentColor" stroke-width="2.3"/>
+      <rect x="19" y="25" width="6" height="14" rx="1.5" fill="var(--art-depth)" stroke="currentColor" stroke-width="2"/><rect x="29" y="25" width="6" height="14" rx="1.5" fill="var(--art-depth)" stroke="currentColor" stroke-width="2"/>
+      <rect x="39" y="25" width="6" height="14" rx="1.5" fill="var(--art-accent)"/><path d="M2 32h11m-4-4 4 4-4 4M53 32h9m-4-4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="entity-message" viewBox="0 0 64 64">
+      <rect x="9" y="15" width="46" height="34" rx="5" fill="var(--art-surface)" stroke="currentColor" stroke-width="2.3"/>
+      <path d="m11 20 21 16 21-16M11 46l14-13m28 13L39 33" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="entity-database" viewBox="0 0 64 64">
+      <path d="M12 15v33c0 6 40 6 40 0V15" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <ellipse cx="32" cy="15" rx="20" ry="8" fill="var(--art-depth)" stroke="currentColor" stroke-width="2"/>
+      <path d="M12 27c0 10 40 10 40 0M12 38c0 10 40 10 40 0" fill="none" stroke="currentColor" stroke-width="1.7"/>
+      <circle cx="44" cy="45" r="2" fill="var(--art-accent)"/>
+    </symbol>
+    <symbol id="entity-storage" viewBox="0 0 64 64">
+      <path d="M13 16h38l5 33a6 6 0 0 1-6 7H14a6 6 0 0 1-6-7z" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <ellipse cx="32" cy="16" rx="19" ry="7" fill="var(--art-depth)" stroke="currentColor" stroke-width="2"/>
+      <path d="M23 31h18M23 39h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="entity-repository" viewBox="0 0 64 64">
+      <path d="M13 9h34a5 5 0 0 1 5 5v40H17a6 6 0 0 1-6-6V15a6 6 0 0 1 2-6z" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <path d="M17 44h35M20 9v35M22 54v5l5-3 5 3v-5M31 23v10m12-15v5a5 5 0 0 1-5 5h-7" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="31" cy="20" r="3" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <circle cx="31" cy="36" r="3" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <circle cx="43" cy="15" r="3" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+    </symbol>
+    <symbol id="entity-function" viewBox="0 0 64 64">
+      <rect x="9" y="9" width="46" height="46" rx="12" fill="var(--art-surface)" stroke="currentColor" stroke-width="2"/>
+      <path d="M34 20h-4a5 5 0 0 0-5 5v17a5 5 0 0 1-5 5h-3M18 30h17m4 2 9 11m0-11-9 11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="entity-decision" viewBox="0 0 64 64">
+      <path d="m32 7 25 25-25 25L7 32z" fill="var(--art-surface)" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M27 24a5 5 0 0 1 10 0c0 4-5 4-5 8m0 6v1" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+</svg>

@@ -1,0 +1,986 @@
+{
+  "version": 1,
+  "retrieved": "2026-10-03",
+  "usage": "Identification in technical reports, not endorsement. Preserve brand geometry and colors. See each source, license, and guidelines before public reuse; missing metadata is not permission. Archived marks are labeled.",
+  "providers": {
+    "Simple Icons": {
+      "license": "CC0 for project contributions; individual icon and trademark terms may differ",
+      "licenseUrl": "https://github.com/simple-icons/simple-icons/blob/develop/LICENSE.md",
+      "disclaimerUrl": "https://github.com/simple-icons/simple-icons/blob/develop/DISCLAIMER.md"
+    }
+  },
+  "icons": [
+    {
+      "id": "teamcity",
+      "title": "TeamCity",
+      "category": "CI / CD",
+      "color": "#000000",
+      "source": "https://www.jetbrains.com/company/brand/",
+      "guidelines": "https://www.jetbrains.com/company/brand",
+      "license": {
+        "type": "JetBrains brand terms",
+        "url": "https://www.jetbrains.com/company/brand/"
+      },
+      "provider": "JetBrains",
+      "revision": "Retrieved 2026-10-03",
+      "download": "https://resources.jetbrains.com/storage/logos/web/teamcity/teamcity.svg",
+      "file": "teamcity.svg",
+      "attribution": {
+        "label": "TeamCity by JetBrains",
+        "url": "https://www.jetbrains.com/"
+      },
+      "surface": "dark"
+    },
+    {
+      "id": "jenkins",
+      "title": "Jenkins",
+      "category": "CI / CD",
+      "color": "#D24939",
+      "source": "https://www.jenkins.io/artwork/",
+      "guidelines": "https://www.jenkins.io/press/",
+      "license": {
+        "type": "CC-BY-SA-3.0",
+        "url": "https://creativecommons.org/licenses/by-sa/3.0/"
+      },
+      "provider": "Jenkins",
+      "revision": "Retrieved 2026-10-03",
+      "download": "https://get.jenkins.io/art/jenkins-logo/logo.svg",
+      "file": "jenkins.svg",
+      "attribution": {
+        "label": "Jenkins artwork by Frontside / Jenkins project",
+        "url": "https://www.jenkins.io/"
+      },
+      "surface": "dark"
+    },
+    {
+      "id": "github-actions",
+      "title": "GitHub Actions",
+      "category": "CI / CD",
+      "color": "#2088FF",
+      "source": "https://github.com/features/actions",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/githubactions.svg",
+      "file": "github-actions.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "circleci",
+      "title": "CircleCI",
+      "category": "CI / CD",
+      "color": "#343434",
+      "source": "https://circleci.com/press",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/circleci.svg",
+      "file": "circleci.svg",
+      "surface": "light"
+    },
+    {
+      "id": "argo-cd",
+      "title": "Argo",
+      "category": "CI / CD",
+      "color": "#EF7B4D",
+      "source": "https://github.com/cncf/artwork/blob/c2e619cdf85e8bac090ceca7c0834c5cfedf9426/projects/argo/icon/black/argo-icon-black.svg",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/argo.svg",
+      "file": "argo-cd.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "sonarqube",
+      "title": "SonarQube Server",
+      "category": "CI / CD",
+      "color": "#126ED3",
+      "source": "https://www.sonarsource.com/company/press-kit",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/sonarqubeserver.svg",
+      "file": "sonarqube.svg",
+      "surface": "light"
+    },
+    {
+      "id": "git",
+      "title": "Git",
+      "category": "Repositories",
+      "color": "#F03C2E",
+      "source": "https://git-scm.com/community/logos",
+      "guidelines": null,
+      "license": {
+        "type": "CC-BY-3.0",
+        "url": "https://creativecommons.org/licenses/by/3.0/"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/git.svg",
+      "file": "git.svg",
+      "surface": "dark",
+      "attribution": {
+        "label": "Git logo by Jason Long",
+        "url": "https://git-scm.com/community/logos"
+      }
+    },
+    {
+      "id": "github",
+      "title": "GitHub",
+      "category": "Repositories",
+      "color": "#181717",
+      "source": "https://github.com/logos",
+      "guidelines": "https://github.com/logos",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/github.svg",
+      "file": "github.svg",
+      "surface": "light"
+    },
+    {
+      "id": "gitlab",
+      "title": "GitLab",
+      "category": "Repositories",
+      "color": "#FC6D26",
+      "source": "https://about.gitlab.com/press/press-kit/",
+      "guidelines": "https://about.gitlab.com/handbook/marketing/corporate-marketing/brand-activation/trademark-guidelines/",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/gitlab.svg",
+      "file": "gitlab.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "bitbucket",
+      "title": "Bitbucket",
+      "category": "Repositories",
+      "color": "#0052CC",
+      "source": "https://atlassian.design/resources/logo-library",
+      "guidelines": "https://atlassian.design/foundations/logos",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/bitbucket.svg",
+      "file": "bitbucket.svg",
+      "surface": "light"
+    },
+    {
+      "id": "subversion",
+      "title": "Subversion",
+      "category": "Repositories",
+      "color": "#809CC9",
+      "source": "https://subversion.apache.org/logo",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/subversion.svg",
+      "file": "subversion.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "docker",
+      "title": "Docker",
+      "category": "Infrastructure",
+      "color": "#2496ED",
+      "source": "https://www.docker.com/company/newsroom/media-resources",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/docker.svg",
+      "file": "docker.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "kubernetes",
+      "title": "Kubernetes",
+      "category": "Infrastructure",
+      "color": "#326CE5",
+      "source": "https://github.com/kubernetes/kubernetes/tree/cac53883f4714452f3084a22e4be20d042a9df33/logo",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/kubernetes.svg",
+      "file": "kubernetes.svg",
+      "surface": "light"
+    },
+    {
+      "id": "helm",
+      "title": "Helm",
+      "category": "Infrastructure",
+      "color": "#0F1689",
+      "source": "https://helm.sh",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/helm.svg",
+      "file": "helm.svg",
+      "surface": "light"
+    },
+    {
+      "id": "terraform",
+      "title": "Terraform",
+      "category": "Infrastructure",
+      "color": "#844FBA",
+      "source": "https://www.hashicorp.com/brand",
+      "guidelines": "https://www.hashicorp.com/brand",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/terraform.svg",
+      "file": "terraform.svg",
+      "surface": "light"
+    },
+    {
+      "id": "ansible",
+      "title": "Ansible",
+      "category": "Infrastructure",
+      "color": "#EE0000",
+      "source": "https://www.ansible.com/logos",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/ansible.svg",
+      "file": "ansible.svg",
+      "surface": "light"
+    },
+    {
+      "id": "pulumi",
+      "title": "Pulumi",
+      "category": "Infrastructure",
+      "color": "#8A3391",
+      "source": "https://www.pulumi.com",
+      "guidelines": "https://www.pulumi.com/brand/",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/pulumi.svg",
+      "file": "pulumi.svg",
+      "surface": "light"
+    },
+    {
+      "id": "vagrant",
+      "title": "Vagrant",
+      "category": "Infrastructure",
+      "color": "#1868F2",
+      "source": "https://www.hashicorp.com/brand",
+      "guidelines": "https://www.hashicorp.com/brand",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/vagrant.svg",
+      "file": "vagrant.svg",
+      "surface": "light"
+    },
+    {
+      "id": "linux",
+      "title": "Linux",
+      "category": "Infrastructure",
+      "color": "#FCC624",
+      "source": "https://www.linuxfoundation.org/the-linux-mark/",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/linux.svg",
+      "file": "linux.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "google-cloud",
+      "title": "Google Cloud",
+      "category": "Cloud",
+      "color": "#4285F4",
+      "source": "https://cloud.google.com",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/googlecloud.svg",
+      "file": "google-cloud.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "cloudflare",
+      "title": "Cloudflare",
+      "category": "Cloud",
+      "color": "#F38020",
+      "source": "https://www.cloudflare.com/logo/",
+      "guidelines": "https://www.cloudflare.com/trademark/",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/cloudflare.svg",
+      "file": "cloudflare.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "digitalocean",
+      "title": "DigitalOcean",
+      "category": "Cloud",
+      "color": "#0080FF",
+      "source": "https://www.digitalocean.com/press/",
+      "guidelines": "https://www.digitalocean.com/press/",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/digitalocean.svg",
+      "file": "digitalocean.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "openstack",
+      "title": "OpenStack",
+      "category": "Cloud",
+      "color": "#ED1944",
+      "source": "https://www.openstack.org/brand/openstack-logo/",
+      "guidelines": "https://www.openstack.org/brand/openstack-logo/",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/openstack.svg",
+      "file": "openstack.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "postgresql",
+      "title": "PostgreSQL",
+      "category": "Databases / storage",
+      "color": "#4169E1",
+      "source": "https://wiki.postgresql.org/wiki/Logo",
+      "guidelines": "https://www.postgresql.org/about/policies/trademarks/",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/postgresql.svg",
+      "file": "postgresql.svg",
+      "surface": "light"
+    },
+    {
+      "id": "mysql",
+      "title": "MySQL",
+      "category": "Databases / storage",
+      "color": "#4479A1",
+      "source": "https://www.mysql.com/about/legal/logos.html",
+      "guidelines": "https://www.mysql.com/about/legal/logos.html",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/mysql.svg",
+      "file": "mysql.svg",
+      "surface": "light"
+    },
+    {
+      "id": "mariadb",
+      "title": "MariaDB",
+      "category": "Databases / storage",
+      "color": "#003545",
+      "source": "https://mariadb.com/about-us/logos/",
+      "guidelines": "https://mariadb.com/about-us/logos/",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/mariadb.svg",
+      "file": "mariadb.svg",
+      "surface": "light"
+    },
+    {
+      "id": "mongodb",
+      "title": "MongoDB",
+      "category": "Databases / storage",
+      "color": "#47A248",
+      "source": "https://www.mongodb.com/pressroom",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/mongodb.svg",
+      "file": "mongodb.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "redis",
+      "title": "Redis",
+      "category": "Databases / storage",
+      "color": "#FF4438",
+      "source": "https://redis.io/brand-guidelines",
+      "guidelines": "https://redis.io/brand-guidelines",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/redis.svg",
+      "file": "redis.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "elasticsearch",
+      "title": "Elasticsearch",
+      "category": "Databases / storage",
+      "color": "#005571",
+      "source": "https://www.elastic.co/brand",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/elasticsearch.svg",
+      "file": "elasticsearch.svg",
+      "surface": "light"
+    },
+    {
+      "id": "sqlite",
+      "title": "SQLite",
+      "category": "Databases / storage",
+      "color": "#003B57",
+      "source": "https://github.com/sqlite/sqlite/blob/43e862723ec680542ca6f608f9963c0993dd7324/art/sqlite370.eps",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/sqlite.svg",
+      "file": "sqlite.svg",
+      "surface": "light"
+    },
+    {
+      "id": "cassandra",
+      "title": "Apache Cassandra",
+      "category": "Databases / storage",
+      "color": "#1287B1",
+      "source": "https://www.apache.org/logos",
+      "guidelines": "https://www.apache.org/foundation/marks",
+      "license": {
+        "type": "Apache-2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/apachecassandra.svg",
+      "file": "cassandra.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "minio",
+      "title": "MinIO",
+      "category": "Databases / storage",
+      "color": "#C72E49",
+      "source": "https://min.io",
+      "guidelines": "https://min.io/logo",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/minio.svg",
+      "file": "minio.svg",
+      "surface": "light"
+    },
+    {
+      "id": "kafka",
+      "title": "Apache Kafka",
+      "category": "Messaging",
+      "color": "#231F20",
+      "source": "https://apache.org/logos",
+      "guidelines": "https://www.apache.org/foundation/marks",
+      "license": {
+        "type": "Apache-2.0",
+        "url": "https://www.apache.org/licenses/LICENSE-2.0"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/apachekafka.svg",
+      "file": "kafka.svg",
+      "surface": "light"
+    },
+    {
+      "id": "rabbitmq",
+      "title": "RabbitMQ",
+      "category": "Messaging",
+      "color": "#FF6600",
+      "source": "https://www.rabbitmq.com",
+      "guidelines": "https://www.rabbitmq.com/trademark-guidelines.html",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/rabbitmq.svg",
+      "file": "rabbitmq.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "nats",
+      "title": "NATS.io",
+      "category": "Messaging",
+      "color": "#27AAE1",
+      "source": "https://github.com/cncf/artwork/blob/88bc5e7a0cc7f3770ba6edddc92e1ab8a6006171/projects/nats/icon/black/nats-icon-black.svg",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/natsdotio.svg",
+      "file": "nats.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "prometheus",
+      "title": "Prometheus",
+      "category": "Observability",
+      "color": "#E6522C",
+      "source": "https://prometheus.io",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/prometheus.svg",
+      "file": "prometheus.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "grafana",
+      "title": "Grafana",
+      "category": "Observability",
+      "color": "#F46800",
+      "source": "https://grafana.com",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/grafana.svg",
+      "file": "grafana.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "datadog",
+      "title": "Datadog",
+      "category": "Observability",
+      "color": "#632CA6",
+      "source": "https://www.datadoghq.com/about/resources",
+      "guidelines": "https://www.datadoghq.com/about/resources/",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/datadog.svg",
+      "file": "datadog.svg",
+      "surface": "light"
+    },
+    {
+      "id": "sentry",
+      "title": "Sentry",
+      "category": "Observability",
+      "color": "#362D59",
+      "source": "https://sentry.io/branding/",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/sentry.svg",
+      "file": "sentry.svg",
+      "surface": "light"
+    },
+    {
+      "id": "opentelemetry",
+      "title": "OpenTelemetry",
+      "category": "Observability",
+      "color": "#000000",
+      "source": "https://cncf-branding.netlify.app/projects/opentelemetry/",
+      "guidelines": "https://cncf-branding.netlify.app/projects/opentelemetry/",
+      "license": {
+        "type": "CC-BY-4.0",
+        "url": "https://creativecommons.org/licenses/by/4.0/"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/opentelemetry.svg",
+      "file": "opentelemetry.svg",
+      "surface": "light"
+    },
+    {
+      "id": "nginx",
+      "title": "NGINX",
+      "category": "Networking / security",
+      "color": "#009639",
+      "source": "https://www.nginx.com/press/",
+      "guidelines": "https://www.nginx.com/press/",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/nginx.svg",
+      "file": "nginx.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "traefik",
+      "title": "Traefik Proxy",
+      "category": "Networking / security",
+      "color": "#24A1C1",
+      "source": "https://traefik.io/traefik",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/traefikproxy.svg",
+      "file": "traefik.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "envoy",
+      "title": "Envoy Proxy",
+      "category": "Networking / security",
+      "color": "#AC6199",
+      "source": "https://d33wubrfki0l68.cloudfront.net/6f16455dae972425b77c7e31642269b375ec250e/3bd11/img/envoy-logo.svg",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/envoyproxy.svg",
+      "file": "envoy.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "vault",
+      "title": "Vault",
+      "category": "Networking / security",
+      "color": "#FFEC6E",
+      "source": "https://www.hashicorp.com/brand",
+      "guidelines": "https://www.hashicorp.com/brand",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/vault.svg",
+      "file": "vault.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "keycloak",
+      "title": "Keycloak",
+      "category": "Networking / security",
+      "color": "#4D4D4D",
+      "source": "https://github.com/keycloak/keycloak-misc/blob/dee033f2d6d6b5c3a6ce8eb84e285f7e5626dbf6/logo/icon-black.svg",
+      "guidelines": null,
+      "license": {
+        "type": "custom",
+        "url": "https://www.linuxfoundation.org/legal/trademark-usage"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/keycloak.svg",
+      "file": "keycloak.svg",
+      "surface": "light"
+    },
+    {
+      "id": "python",
+      "title": "Python",
+      "category": "Runtimes",
+      "color": "#3776AB",
+      "source": "https://www.python.org/community/logos/",
+      "guidelines": "https://www.python.org/community/logos/",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/python.svg",
+      "file": "python.svg",
+      "surface": "light"
+    },
+    {
+      "id": "nodejs",
+      "title": "Node.js",
+      "category": "Runtimes",
+      "color": "#5FA04E",
+      "source": "https://nodejs.org/en/about/branding",
+      "guidelines": "https://nodejs.org/en/about/branding",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/nodedotjs.svg",
+      "file": "nodejs.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "go",
+      "title": "Go",
+      "category": "Runtimes",
+      "color": "#00ADD8",
+      "source": "https://blog.golang.org/go-brand",
+      "guidelines": "https://blog.golang.org/go-brand",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/go.svg",
+      "file": "go.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "rust",
+      "title": "Rust",
+      "category": "Runtimes",
+      "color": "#000000",
+      "source": "https://www.rust-lang.org",
+      "guidelines": "https://www.rust-lang.org/policies/media-guide",
+      "license": {
+        "type": "CC-BY-SA-4.0",
+        "url": "https://creativecommons.org/licenses/by-sa/4.0/"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/rust.svg",
+      "file": "rust.svg",
+      "surface": "light"
+    },
+    {
+      "id": "spring",
+      "title": "Spring",
+      "category": "Runtimes",
+      "color": "#6DB33F",
+      "source": "https://spring.io/trademarks",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/spring.svg",
+      "file": "spring.svg",
+      "surface": "dark"
+    },
+    {
+      "id": "jira",
+      "title": "Jira",
+      "category": "Collaboration",
+      "color": "#0052CC",
+      "source": "https://atlassian.design/resources/logo-library",
+      "guidelines": "https://atlassian.design/foundations/logos/",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/jira.svg",
+      "file": "jira.svg",
+      "surface": "light"
+    },
+    {
+      "id": "confluence",
+      "title": "Confluence",
+      "category": "Collaboration",
+      "color": "#172B4D",
+      "source": "https://www.atlassian.com/company/news/press-kit",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/confluence.svg",
+      "file": "confluence.svg",
+      "surface": "light"
+    },
+    {
+      "id": "openjdk",
+      "title": "OpenJDK",
+      "category": "Runtimes",
+      "color": "#000000",
+      "source": "https://hg.openjdk.java.net/duke/duke/file/ca00f100dafc/vector/Agent.svg",
+      "guidelines": null,
+      "license": {
+        "type": "BSD-3-Clause",
+        "url": "https://opensource.org/license/bsd-3-clause"
+      },
+      "provider": "Simple Icons",
+      "revision": "1089fb7d2bf0e323f834c205ab76265005a6d5e8",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/1089fb7d2bf0e323f834c205ab76265005a6d5e8/icons/openjdk.svg",
+      "file": "openjdk.svg",
+      "surface": "light"
+    },
+    {
+      "id": "dotnet",
+      "title": ".NET",
+      "category": "Runtimes",
+      "color": "#512BD4",
+      "source": "https://github.com/dotnet/brand/blob/defe0408e765b48223a434a0d9a94213edc062f8/logo/dotnet-logo.svg",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "11.15.0",
+      "editionNote": "Archived mark from Simple Icons 11.15.0; retained for existing infrastructure. Check current brand guidelines for public use.",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/11.15.0/icons/dotnet.svg",
+      "file": "dotnet.svg",
+      "surface": "light"
+    },
+    {
+      "id": "aws",
+      "title": "Amazon AWS",
+      "category": "Cloud",
+      "color": "#232F3E",
+      "source": "https://commons.wikimedia.org/wiki/File:Amazon_Web_Services_Logo.svg",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "11.15.0",
+      "editionNote": "Archived mark from Simple Icons 11.15.0; retained for existing infrastructure. Check current brand guidelines for public use.",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/11.15.0/icons/amazonaws.svg",
+      "file": "aws.svg",
+      "surface": "light"
+    },
+    {
+      "id": "azure",
+      "title": "Microsoft Azure",
+      "category": "Cloud",
+      "color": "#0078D4",
+      "source": "https://github.com/microsoft/vscode-azureresourcegroups/blob/0a06362e82170fd7f8dc2496286825b1a69cc42b/resources/azure.svg",
+      "guidelines": "https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "11.15.0",
+      "editionNote": "Archived mark from Simple Icons 11.15.0; retained for existing infrastructure. Check current brand guidelines for public use.",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/11.15.0/icons/microsoftazure.svg",
+      "file": "azure.svg",
+      "surface": "light"
+    },
+    {
+      "id": "sql-server",
+      "title": "Microsoft SQL Server",
+      "category": "Databases / storage",
+      "color": "#CC2927",
+      "source": "https://de.wikipedia.org/wiki/Datei:Microsoft_SQL_Server_Logo.svg",
+      "guidelines": null,
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "11.15.0",
+      "editionNote": "Archived mark from Simple Icons 11.15.0; retained for existing infrastructure. Check current brand guidelines for public use.",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/11.15.0/icons/microsoftsqlserver.svg",
+      "file": "sql-server.svg",
+      "surface": "light"
+    },
+    {
+      "id": "teams",
+      "title": "Microsoft Teams",
+      "category": "Collaboration",
+      "color": "#6264A7",
+      "source": "https://developer.microsoft.com/en-us/fluentui#/styles/web/colors/products",
+      "guidelines": "https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks",
+      "license": {
+        "type": "custom",
+        "url": "https://aka.ms/fluentui-assets-license"
+      },
+      "provider": "Simple Icons",
+      "revision": "11.15.0",
+      "editionNote": "Archived mark from Simple Icons 11.15.0; retained for existing infrastructure. Check current brand guidelines for public use.",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/11.15.0/icons/microsoftteams.svg",
+      "file": "teams.svg",
+      "surface": "light"
+    },
+    {
+      "id": "slack",
+      "title": "Slack",
+      "category": "Collaboration",
+      "color": "#4A154B",
+      "source": "https://slack.com/brand-guidelines",
+      "guidelines": "https://slack.com/brand-guidelines",
+      "license": {
+        "type": "Not specified by upstream; brand terms still apply"
+      },
+      "provider": "Simple Icons",
+      "revision": "11.15.0",
+      "editionNote": "Archived mark from Simple Icons 11.15.0; retained for existing infrastructure. Check current brand guidelines for public use.",
+      "download": "https://raw.githubusercontent.com/simple-icons/simple-icons/11.15.0/icons/slack.svg",
+      "file": "slack.svg",
+      "surface": "light"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+Local brand artwork for product identification in technical review reports.
+
+The catalog.json file is the inventory and provenance record. Each entry names
+the upstream asset, revision, official source, known license, brand guidelines,
+and any archived-mark note. Standalone SVG files retain downloaded artwork.
+The report renderer removes editor metadata and unsafe SVG features, namespaces
+internal IDs, and applies the recorded brand color to monochrome Simple Icons
+marks. It does not change their path geometry or recolor them by change status.
+
+Simple Icons project contributions are CC0; individual icon licenses and
+trademark terms may differ. See the included upstream license and disclaimer.
+Unspecified license metadata is not permission or a claim that an asset is CC0.
+Archived marks from 11.15.0 are labeled in the catalog and visual gallery.
+
+TeamCity: official JetBrains artwork and brand terms.
+Source: https://www.jetbrains.com/company/brand/
+Link-back attribution: https://www.jetbrains.com/
+
+Jenkins: official artwork, created by Frontside, distributed under CC BY-SA 3.0.
+Source and attribution: https://www.jenkins.io/artwork/
+License: https://creativecommons.org/licenses/by-sa/3.0/
+The downloaded full-color logo is retained. HTML embedding removes editor
+metadata and namespaces SVG IDs without changing the artwork geometry/colors.
+
+Required credit/license links accompany selected marks in generated reports.
+Preserve this notice, catalog metadata, and license files when copying the library.
+Consult current brand guidelines before public use. Product identification does
+not imply ownership, endorsement, or that the reviewed project uses that product.

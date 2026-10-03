@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Report"
+  short_description: "Explain changes and proposed solutions in visual HTML"
+  default_prompt: "Use $review-report to explain these changes or develop one proposed solution as a visual HTML report."
