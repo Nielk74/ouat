@@ -17,6 +17,8 @@ Ordinary explanation requests do not activate the skill. `review` explains an in
 
 The agent records scope and source revisions, validates JSON, and delivers HTML plus its source JSON. Reports embed their assets and open locally without a server. Source links identify their lines and revisions; local file links open the current working copy.
 
+Code excerpts and JSON recipes use offline syntax highlighting. Languages are selected from an explicit hint, filename, or content; the bundle supports 194 grammars. See [syntax licenses](change-explanation/assets/vendor/NOTICE.txt).
+
 ## Try the examples
 
 Use Python 3.12; the renderer and tests use only the standard library.
@@ -39,6 +41,8 @@ The proposals are hypothetical. The documentation review does not verify runtime
 ![Interactive showcase preview](docs/showcase-preview.png)
 
 Open [the showcase](docs/showcase.html) locally to explore problem stories, layouts, icons, and motion. Expand a question to see its mechanism and JSON recipe. On GitHub, download the HTML first.
+
+In Problems, adjust demand to compare an overloaded single API with load balancing, a bounded queue, concurrent workers, and pooled database access under the same bursts.
 
 ```sh
 python change-explanation/scripts/report.py showcase --output docs/showcase.html --force

@@ -620,17 +620,12 @@ def render_graph(visual, mode, prefix):
     return ''.join(pieces)
 
 
-def highlight_code(line):
-    pattern = r'''("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|//[^\n]*|\#[^\n]*|\b(?:await|async|const|let|return|new|import|from|if|else|true|false|export|function)\b|\b\d+\b)'''
-    pieces, last = [], 0
-    for match in re.finditer(pattern, line):
-        pieces.append(text(line[last:match.start()]))
-        token = match[0]
-        category = "comment" if token.startswith(("//", "#")) else "string" if token.startswith(('"', "'")) else "number" if token.isdigit() else "keyword"
-        pieces.append(f'<span class="token-{category}">{text(token)}</span>')
-        last = match.end()
-    pieces.append(text(line[last:]))
-    return ''.join(pieces)
+def syntax_script():
+    script = '\n'.join((ASSETS / name).read_text(encoding="utf-8") for name in ("vendor/highlight.min.js", "syntax.js"))
+    licenses = '\n\n'.join((ASSETS / "vendor" / name).read_text(encoding="utf-8") for name in ("highlight.LICENSE", "terraform.LICENSE"))
+    script = '/* Bundled syntax-highlighting licenses:\n' + licenses + '\n*/\n' + script
+    script = re.sub(r"</script", r"<\\/script", script, flags=re.I)
+    return '<script id="syntax-highlighter">' + script + '</script>'
 
 
 def render_code(code, mode):
@@ -641,9 +636,13 @@ def render_code(code, mode):
             states["before"][first:last] = ["deleted"]*(last-first)
             states["after"][next_first:next_last] = ["added"]*(next_last-next_first)
     file = f'<code class="code-file">{text(code["file"])}</code>' if "file" in code else '<span>Selected code</span>'
+    href = source_href(code)
+    if href:
+        file = f'<a class="code-source-link" href="{text(href)}" title="Local working copy">{file}</a>'
     symbol = f'<code class="code-symbol">{text(code["symbol"])}</code>' if "symbol" in code else ""
-    language = f'<span class="code-language">{text(code["language"])}</span>' if "language" in code else ""
-    pieces = [f'<div class="code-change"><div class="code-filebar">{ui_icon("file", 20)}{file}{symbol}{language}</div><div class="code-columns">']
+    language = f'<span class="code-language">{text(code.get("language", ""))}</span>'
+    hints = f'data-language="{text(code.get("language", ""))}" data-file="{text(code.get("file", ""))}"'
+    pieces = [f'<div class="code-change" {hints}><div class="code-filebar">{ui_icon("file", 20)}{file}{symbol}{language}</div><div class="code-columns">']
     for side, lines in (("before", before), ("after", after)):
         title = "Before" if side == "before" else "Proposed" if mode == "plan" else "After"
         source_line = code.get(side + "Line")
@@ -656,7 +655,7 @@ def render_code(code, mode):
             state = states[side][index]
             sign = "−" if state == "deleted" else "+" if state == "added" else " "
             number = source_line + index if source_line is not None else index + 1
-            pieces.append(f'<span class="code-line {state}"><span class="code-lineno" aria-hidden="true">{number}</span><span class="code-sign" aria-hidden="true">{sign}</span><span class="code-text">{highlight_code(line)}</span></span>')
+            pieces.append(f'<span class="code-line {state}"><span class="code-lineno" aria-hidden="true">{number}</span><span class="code-sign" aria-hidden="true">{sign}</span><span class="code-text">{text(line)}</span></span>')
         pieces.append('</code></pre></div>')
     pieces.append('</div>')
     if "summary" in code:
@@ -816,6 +815,8 @@ def render(report):
     footer = '<footer class="footer">Change explanation / v1</footer>'
     sprites = (ASSETS / "entities.svg").read_text(encoding="utf-8") + (ASSETS / "ui-icons.svg").read_text(encoding="utf-8") + brand_sprite(brands)
     body = f'{sprites}<div class="shell">{topbar}<main class="report" id="report">{header}{content}{footer}{brand_credits(brands)}</main></div>'
+    if any("code" in change for change in report["changes"]):
+        body += syntax_script()
     page = (ASSETS / "page.html").read_text(encoding="utf-8")
     # Substitute only template tokens, never text embedded by a report.
     styles = (ASSETS / "report.css").read_text(encoding="utf-8") + "\n" + (ASSETS / "modern.css").read_text(encoding="utf-8")

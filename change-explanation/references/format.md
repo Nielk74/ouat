@@ -24,6 +24,8 @@ Explicit URLs must be verified, absolute, and use http, https, file, codex, or v
 
 Use only inspected lines for reviews; identify fictional snippets in plans. Keep excerpts focused and state material gaps. Positive before/after line numbers identify actual source lines; without them, numbering is labeled Excerpt lines. Excerpts are not a complete patch or patch-size metric. Do not add diff signs or HTML; highlighting comes from the renderer.
 
+Highlighting works offline with 194 bundled language grammars, including Terraform/HCL. Optional `language` overrides filename detection; otherwise the renderer uses the extension or known filename, then content detection for common languages. Use `plaintext` for uncolored text. Unknown explicit languages and weak or tied content guesses stay plain. Multiline tokens preserve their scopes across diff lines; source text and gutters remain readable without JavaScript. Absolute `file` paths in excerpt headers open the local working copy.
+
 ### Impacts, actions, and risks
 
 Add an impact only when it contributes a consequence. Each requires `change` (change ID), `description`, and `basis`: `observed` for direct inspection/verification, `inferred` for reasoning from evidence, or `expected` for prediction. Plans cannot claim observed implementation outcomes. Changes need not have impacts.
@@ -95,6 +97,8 @@ Interrupted-work requires from/at in the same explicit process group. Message-lo
 Duplicate-effect requires an at→from acknowledgement edge with an `issue`; the operation itself succeeds. Optional `subject` names the repeated operation. Out-of-order may specify distinct `earlier`/`later` values together (for example, search terms `ca`/`cat`). Timeout illustrates continued work and a late result, not automatic cancellation. Partial-failure preserves the earlier effect rather than implying rollback. These four patterns show an initial state, an intermediate event, and a held outcome.
 
 Use existing flows for lock cycles, repeated invalid messages, mismatched configuration, and premature acknowledgements. Keep the causal order and concrete values visible. The explorer's Problems section contains copyable examples; it is separate from normal reports.
+
+The explorer also compares a single synchronous API with bounded concurrent processing under identical bursts. Its dots represent requests, not network packets. Finished counts completed business work; rejected work is disjoint from queued or active jobs. Capacities are illustrative, and the database remains a stated limit. Copy its recipe for an ordinary architecture explanation; the live simulation stays in the explorer.
 
 ### Ordered behavior
 

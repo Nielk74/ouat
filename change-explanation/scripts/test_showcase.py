@@ -32,6 +32,17 @@ class ShowcaseInspector(HTMLParser):
 
 
 class ShowcaseTests(unittest.TestCase):
+    def test_traffic_model_has_valid_reusable_recipe_and_stays_in_explorer(self):
+        module = self.showcase_module()
+        example = module.traffic_example()
+        self.assertFalse(report.validate(example))
+        html = module.render_showcase(report)
+        for identifier in ("traffic-model", "traffic-demand", "traffic-current-diagram", "traffic-scaled-diagram"):
+            self.assertIn(f'id="{identifier}"', html)
+        self.assertIn("Requests", html)
+        self.assertIn("Rejected", html)
+        self.assertNotIn('id="traffic-model"', report.render(example))
+
     def showcase_module(self):
         import showcase
         return showcase

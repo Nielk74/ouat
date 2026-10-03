@@ -35,3 +35,5 @@ python <skill-folder>/scripts/report.py render <explanation.json> --output <expl
 Use the requested destination or `reports/`; keep JSON alongside HTML. Fix errors and relevant warnings. Use `--force` only for your own output. Validation does not establish factual accuracy.
 
 Check the report in available browser tooling; disclose when visual verification was unavailable. Deliver HTML and JSON links, identify review or proposal, and state any material limitation or action. Open the HTML when supported. Generation does not authorize implementation or manual actions.
+
+Present file paths in user-facing prose as clickable Markdown links with absolute targets: `[explanation.html](/absolute/path/explanation.html)`. Wrap targets containing spaces in angle brackets. For real paths inside commands, add links alongside the command. Link local sources only when the file is real and inspected.

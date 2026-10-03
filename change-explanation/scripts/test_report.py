@@ -55,7 +55,8 @@ class PageInspector(HTMLParser):
             self.sections.append(attrs.get("id"))
         if tag == "dialog" or "hidden" in attrs:
             self.hidden_content.append(tag)
-        if tag == "script":
+        # Count unexpected executable markup separately from the bundled enhancer.
+        if tag == "script" and attrs.get("id") != "syntax-highlighter":
             self.scripts += 1
         if tag in ("link", "script", "img", "iframe"):
             url = attrs.get("src", attrs.get("href", ""))

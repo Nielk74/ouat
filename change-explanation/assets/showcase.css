@@ -38,6 +38,14 @@
 .recipe-actions { display: flex; align-items: center; gap: 12px; margin: 8px 0; }
 .copy-status { font-size: 14px; color: var(--muted); }
 .recipe-json { max-height: 380px; overflow: auto; padding: 16px; margin: 8px 0 0; background: var(--editor); border: 1px solid var(--line); font: 13px/1.65 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+#traffic-model .traffic-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin: 18px 0; font-size: 14px; }
+#traffic-model .traffic-controls output { min-width: 100px; color: var(--ink); font: 13px var(--mono); }
+#traffic-model .traffic-panel { min-width: 0; padding: 16px; border: 1px solid var(--line); border-radius: 6px; background: var(--editor); }
+#traffic-model .traffic-panel h4 { font-size: 16px; margin: 0; }
+#traffic-model .traffic-capacity, #traffic-model > .traffic-note { color: var(--muted); font-size: 13px; margin: 6px 0; }
+#traffic-model .traffic-counters { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin: 10px 0; }
+#traffic-model .traffic-counters dt { color: var(--muted); font-size: 12px; }
+#traffic-model .traffic-counters dd { color: var(--ink); font: 22px var(--mono); margin: 0; }
 .showcase-enhanced .showcase-demo:not(.in-view) *,
 .showcase-enhanced .showcase-demo:not(.in-view) *::before,
 .showcase-enhanced .showcase-demo:not(.in-view) *::after { animation-play-state: paused !important; }

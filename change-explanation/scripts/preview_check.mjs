@@ -1,12 +1,15 @@
 // Optional visual verification: Node 22+ and a local Chromium browser, no packages.
 // node preview_check.mjs report.html output-directory browser-executable
+// Optional fourth argument --traffic-only checks the teaching model and syntax quickly.
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, writeFileSync, mkdirSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { resolve, join, dirname, basename } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { checkSyntax } from './syntax_checks.mjs';
+import { checkTraffic } from './traffic_checks.mjs';
 
-const [source, destination, executable] = process.argv.slice(2);
+const [source, destination, executable, scope] = process.argv.slice(2);
 if (!source || !destination || !executable) {
   throw new Error('Usage: node preview_check.mjs report.html output-directory browser-executable');
 }
@@ -64,7 +67,7 @@ try {
   }
   async function evaluate(expression) {
     const response = await cdp('Runtime.evaluate', { expression, returnByValue: true, awaitPromise: true });
-    if (response.exceptionDetails) throw new Error(response.exceptionDetails.text);
+    if (response.exceptionDetails) throw new Error(response.exceptionDetails.exception?.description || response.exceptionDetails.text);
     return response.result.value;
   }
   await cdp('Page.enable');
@@ -72,7 +75,7 @@ try {
   const url = pathToFileURL(resolve(source)).href;
   const results = [];
   mkdirSync(resolve(destination), { recursive: true });
-  for (const width of [1440, 1280, 768, 375]) {
+  for (const width of scope === '--traffic-only' ? [1440] : [1440, 1280, 768, 375]) {
     await cdp('Emulation.setDeviceMetricsOverride', { width, height: 1100, deviceScaleFactor: 1, mobile: width < 600 });
     await cdp('Emulation.setEmulatedMedia', { features: [] });
     await cdp('Page.navigate', { url });
@@ -83,6 +86,13 @@ try {
       await sleep(50);
     }
     if (!ready) throw new Error('Report did not finish loading.');
+    const syntax = width === 1440 ? await checkSyntax(evaluate, readFileSync(new URL('../assets/syntax.js', import.meta.url), 'utf8')) : null;
+    const traffic = width === 1440 ? await checkTraffic(evaluate) : null;
+    if (scope === '--traffic-only') {
+      if (!traffic) throw new Error('This page has no traffic model.');
+      results.push({width,syntax,traffic});
+      continue;
+    }
     const problemDisclosures = await evaluate(`(async () => {
       const details = [...document.querySelectorAll('.problem-example')];
       if (!details.length) return null;
@@ -236,8 +246,9 @@ try {
       }
       if (innerWidth >= 1000) {
         for (const section of document.querySelectorAll('main section')) {
+          const heading = section.querySelector(':scope > h2');
+          if (!heading) continue;
           section.scrollIntoView();
-          const heading = section.querySelector('h2');
           if (heading.getBoundingClientRect().top < nav.getBoundingClientRect().bottom-1) failures.push('Anchored heading is hidden by navigation.');
         }
       }
@@ -651,7 +662,7 @@ try {
         '.context-notes p', '.context-notes li', '.section-navigation a', '.summary-risks a', '.connection-details summary',
         '.mode', '.change-id', '.change-description', '.badge', '.code-file',
         '.code-symbol', '.code-kind', '.code-language', '.code-side-title',
-        '.code-text', '.code-sign', '.code-lineno', '.code-line-note', '[class^="token-"]', '.code-summary',
+        '.code-text', '.code-sign', '.code-lineno', '.code-line-note', '[class*="hljs-"]', '.code-summary',
         '.visual-heading', 'figcaption', '.connection-index', '.connection-direction',
         '.connection-label', '.connection-status', '.transport-label', '.basis',
         '.issue-notes h4', '.issue-notes strong', '.issue-notes p',
@@ -889,8 +900,33 @@ try {
         const changeImage = await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true, clip: { x: 0, y: change.y, width, height: change.height, scale: 1 } });
         writeFileSync(join(resolve(destination), reportName + '-' + change.id + '.png'), Buffer.from(changeImage.data, 'base64'));
       }
+      if (traffic) {
+        const bounds = await evaluate(`(() => {
+          document.getElementById('motion-pause').click();
+          window.ChangeExplanationTraffic.setDemand(18);
+          window.ChangeExplanationTraffic.advance(1.9);
+          const node = document.getElementById('traffic-model');
+          return {y:node.getBoundingClientRect().top+scrollY,height:node.offsetHeight};
+        })()`);
+        const shot = await cdp('Page.captureScreenshot', {format:'png',captureBeyondViewport:true,clip:{x:0,y:bounds.y,width,height:bounds.height,scale:1}});
+        writeFileSync(join(resolve(destination),'showcase-traffic-model.png'),Buffer.from(shot.data,'base64'));
+      }
     }
-    results.push({ ...layout, nativeMotion, showcaseInteractions, problemDisclosures, diagramText, arrowLabels, navigationCheck, connectionBadges, diagramRouting, brandArtwork, packetMotion, sequenceMotion, scenarioMotion, responsiveSequence, staticPackets, staticScenarios, contrast, reducedMotion, reducedPlayback, printMotion, printScenarios, printDetails, printProblems, screenshot: output });
+    let syntaxWithoutJS = null;
+    if (width === 1440 && syntax) {
+      const snapshot = await evaluate(`Array.from(document.querySelectorAll('.code-line'), line=>({text:line.textContent, state:line.className}))`);
+      await cdp('Emulation.setScriptExecutionDisabled', {value:true});
+      await cdp('Page.navigate', {url});
+      for (let attempt=0; attempt<100; attempt++) {
+        if (await evaluate('document.readyState === "complete" && location.href === '+JSON.stringify(url))) break;
+        await sleep(50);
+      }
+      const plain = await evaluate(`({lines:Array.from(document.querySelectorAll('.code-line'),line=>({text:line.textContent,state:line.className})), painted:document.querySelectorAll('.code-change[data-highlighted], .recipe-json [data-highlighted]').length})`);
+      syntaxWithoutJS = {checked:plain.lines.length, sourcePreserved:JSON.stringify(snapshot)===JSON.stringify(plain.lines), painted:plain.painted};
+      if (!syntaxWithoutJS.sourcePreserved || plain.painted) throw new Error('Plain source or diff gutters changed without JavaScript.');
+      await cdp('Emulation.setScriptExecutionDisabled', {value:false});
+    }
+    results.push({ ...layout, syntax, syntaxWithoutJS, traffic, nativeMotion, showcaseInteractions, problemDisclosures, diagramText, arrowLabels, navigationCheck, connectionBadges, diagramRouting, brandArtwork, packetMotion, sequenceMotion, scenarioMotion, responsiveSequence, staticPackets, staticScenarios, contrast, reducedMotion, reducedPlayback, printMotion, printScenarios, printDetails, printProblems, screenshot: output });
   }
   if (pageErrors.length) throw new Error(pageErrors.join('; '));
   console.log(JSON.stringify({ checks: results, pageErrors }, null, 2));

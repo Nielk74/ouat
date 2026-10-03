@@ -1,0 +1,13 @@
+Highlight.js 11.12.0 — https://github.com/highlightjs/highlight.js
+193 built-in languages plus Terraform/HCL, bundled for offline reports.
+BSD 3-Clause license: see highlight.LICENSE.
+Terraform grammar: https://github.com/highlightjs/highlightjs-terraform
+Commit eb1b9661e143a43dff6b58b391128ce5cdad31d4; MIT license: see terraform.LICENSE.
+Both licenses are embedded in generated reports.
+
+Build: import hljs from 'highlight.js'; import registerTerraform from './terraform-original.js';
+registerTerraform(hljs); export default hljs;
+terraform-original.js is terraform.js from the pinned commit above, without edits.
+Bundle that entry with esbuild 0.28.2:
+--bundle --minify --format=iife --global-name=ChangeExplanationHLJS --target=es2020 --supported:template-literal=false
+No npm or Node installation is needed to generate or read reports.

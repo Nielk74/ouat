@@ -1,0 +1,29 @@
+/* Explorer-only traffic illustration; component status colors describe architecture. */
+#traffic-model { margin: 20px 0; }
+#traffic-model .traffic-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+#traffic-model .traffic-diagram { display: block; width: 100%; height: auto; overflow: visible; }
+#traffic-model .traffic-diagram text { fill: var(--ink); font: 14px var(--sans); text-anchor: middle; }
+#traffic-model .traffic-diagram .traffic-note { fill: var(--muted); font-size: 12px; }
+#traffic-model .traffic-node { color: var(--unchanged); }
+#traffic-model .traffic-node > rect { fill: var(--editor); stroke: #858a92; stroke-width: 1.5; }
+#traffic-model .traffic-added { color: var(--new); }
+#traffic-model .traffic-added > rect { stroke: var(--new); }
+#traffic-model .traffic-added text { fill: var(--ink); }
+#traffic-model .traffic-changed { color: var(--changed); }
+#traffic-model .traffic-changed > rect { stroke: var(--changed); }
+#traffic-model .traffic-users { fill: none; stroke: var(--unchanged); stroke-width: 1.4; stroke-linecap: round; }
+#traffic-model .traffic-users text { stroke: none; }
+#traffic-model .traffic-route { fill: none; stroke: #92979f; stroke-width: 1.5; stroke-linejoin: round; }
+#traffic-model marker path { fill: #92979f; }
+#traffic-model .traffic-request { fill: var(--ink); stroke: var(--editor); stroke-width: 1; }
+#traffic-model .traffic-pending { fill: var(--unchanged); }
+#traffic-model .traffic-rejection { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; }
+#traffic-model .traffic-service-track { fill: var(--editor); stroke: #858a92; stroke-width: 1; }
+#traffic-model .traffic-service-fill { fill: var(--unchanged); }
+#traffic-model .traffic-overloaded .traffic-queue-label { fill: var(--ink); }
+#traffic-model .traffic-queue-label { font-size: 12px; font-variant-numeric: tabular-nums; }
+#traffic-model input[type="range"] { accent-color: var(--unchanged); min-width: 180px; max-width: 100%; }
+#traffic-model [data-traffic-metric] { font-variant-numeric: tabular-nums; }
+#traffic-model #traffic-current-state, #traffic-model #traffic-scaled-state { min-height: 1.5em; color: var(--ink); font-size: 14px; }
+@media (max-width: 1000px) { #traffic-model .traffic-comparison { grid-template-columns: minmax(0, 1fr); } }
+@media print { #traffic-model { break-inside: avoid; } #traffic-model #traffic-restart, #traffic-model input[type="range"] { display: none; } }

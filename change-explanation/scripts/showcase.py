@@ -132,6 +132,61 @@ def recipe(value):
     return f'<details class="demo-recipe"><summary>JSON recipe</summary><div class="recipe-actions"><button type="button" data-copy-json>Copy JSON</button><span class="copy-status" role="status"></span></div><pre class="recipe-json"><code>{serialized}</code></pre></details>'
 
 
+def traffic_example():
+    """A hypothetical architecture recipe; the live load model is explorer-only."""
+    baseline = {"template": "flow", "nodes": [
+        {"id": "frontend", "label": "Frontend", "kind": "client", "status": "unchanged"},
+        {"id": "api", "label": "One API", "kind": "server", "status": "unchanged", "issue": "One execution slot blocks while waiting for the database. More callers wait or are rejected."},
+        {"id": "db", "label": "Database", "kind": "database", "status": "unchanged"}],
+        "edges": [
+            {"from": "frontend", "to": "api", "label": "Call directly", "transport": "request", "status": "unchanged"},
+            {"from": "api", "to": "db", "label": "Wait for result", "transport": "write", "status": "unchanged"}]}
+    components = [("frontend", "Frontend", "client", "unchanged"), ("balancer", "Load balancer", "service", "new"),
+                  ("apis", "Three API replicas", "server", "changed"), ("queue", "Bounded durable queue", "queue", "new"),
+                  ("workers", "Concurrent worker pool", "worker", "new"), ("pool", "DB connection pool", "service", "new"),
+                  ("db", "Database", "database", "unchanged")]
+    nodes = [{"id": identifier, "label": label, "kind": kind, "status": status} for identifier, label, kind, status in components]
+    nodes[3]["detail"] = "At most 36 waiting jobs; reject overflow."
+    nodes[4]["detail"] = "12 concurrent jobs, each taking 0.5 seconds."
+    nodes[5]["detail"] = "Bound database access; the database is assumed to sustain 24 completed operations per second."
+    links = [("frontend", "balancer", "Send request", "request"), ("balancer", "apis", "Distribute requests", "request"),
+             ("apis", "queue", "Persist job", "message"), ("queue", "workers", "Dispatch job", "message"),
+             ("workers", "pool", "Acquire connection", "request"), ("pool", "db", "Finish operation", "write")]
+    solution = {"template": "flow", "nodes": nodes, "edges": [
+        {"from": first, "to": second, "label": label, "transport": transport, "status": "new"} for first, second, label, transport in links]}
+    return {"version": 1, "mode": "plan", "title": "Handle bursts with bounded concurrent processing",
+            "summary": "Distribute incoming requests, persist waiting work, and process jobs concurrently within database capacity.",
+            "context": {"baseline": "Illustrative single synchronous API: one 0.5-second operation at a time, with six waiting callers.",
+                        "assumptions": ["Both architectures receive identical bursts: twice the selected mean rate for two seconds, then two seconds without arrivals.",
+                                        "The database supports 24 completed operations per second; replicas and queues do not increase that limit."], "visual": baseline},
+            "changes": [{"id": "concurrent-processing", "title": "Separate admission from execution", "status": "changed",
+                         "description": "Use three API replicas behind a load balancer, a durable queue for up to 36 waiting jobs, and 12 concurrent worker slots with bounded database access.",
+                         "visual": solution}],
+            "risks": [{"change": "concurrent-processing", "title": "Sustained demand still exceeds capacity", "severity": "important",
+                       "condition": "Mean arrivals remain above 24 requests per second.", "consequence": "The queue fills and overflow must be rejected.",
+                       "mitigation": "Apply backpressure and verify the actual worker and database capacity before scaling."}]}
+
+
+def traffic_markup():
+    panels = []
+    for side, title, caption in (("current", "One API", "One execution slot · up to 2 finished/s"),
+                                 ("scaled", "Bounded concurrent processing", "12 worker slots · up to 24 finished/s")):
+        counters = ''.join(f'<div><dt>{label}</dt><dd data-traffic-side="{side}" data-traffic-metric="{metric}">0</dd></div>'
+                           for metric, label in (("active", "Working"), ("waiting", "Waiting"), ("completed", "Finished"), ("lost", "Rejected")))
+        panels.append(f'<section class="traffic-panel" aria-labelledby="traffic-{side}-title"><h4 id="traffic-{side}-title">{title}</h4>'
+                      f'<p class="traffic-capacity">{caption}</p><div id="traffic-{side}-diagram"></div><dl class="traffic-counters">{counters}</dl>'
+                      f'<p class="traffic-state" id="traffic-{side}-state">Ready for requests.</p></section>')
+    return ('<article class="showcase-demo" id="traffic-model"><div class="demo-heading"><h3>Why does one API stall under many users?</h3>'
+            '<button type="button" id="traffic-restart" class="demo-replay">Restart comparison</button></div>'
+            '<p class="demo-description">Same incoming load. More processing capacity; bounded waiting.</p>'
+            '<div class="traffic-controls"><label for="traffic-demand">Mean demand</label><input type="range" id="traffic-demand" min="2" max="40" step="1" value="18">'
+            '<output id="traffic-demand-value" for="traffic-demand">18 requests/s</output></div>'
+            '<div class="traffic-panels traffic-comparison">' + ''.join(panels) + '</div>'
+            '<p class="traffic-note">Requests arrive in identical bursts every four seconds. Dots are requests; crosses mark rejected work.</p>'
+            '<p class="traffic-note">Illustrative capacities: each job takes 0.5 s; the database sustains 24 operations/s. A queue buys time; workers add capacity.</p>'
+            + recipe(traffic_example()) + '</article>')
+
+
 def render_showcase(renderer):
     r = renderer
     demos = visual_demos(r)
@@ -169,6 +224,11 @@ def render_showcase(renderer):
     body += f'<div class="showcase-toolbar"><nav class="section-navigation" aria-label="Showcase sections">{nav}</nav>{controls}</div>'
     for identifier, title in sections[:4]:
         body += f'<section class="showcase-section" id="{identifier}"><h2>{escape(title)}</h2>'
+        if identifier == "problems":
+            traffic_errors = r.validate(traffic_example())
+            if traffic_errors:
+                raise ValueError(f"Invalid traffic example: {traffic_errors}")
+            body += traffic_markup()
         for demo in (demo for demo in demos if demo["group"] == identifier):
             visual = demo["visual"]
             moving = identifier == "motion" or visual.get("scenario") or visual.get("sequence")
@@ -199,8 +259,10 @@ def render_showcase(renderer):
     rendered = r.render(example)
     body += '<div class="showcase-report-example">' + re.search(r'<header class="masthead">.*?</header>', rendered, re.S).group() + ''.join(re.findall(r'<section class="section".*?</section>', rendered, re.S)) + '</div>' + recipe(example) + '</article></section>'
     body += '</main>'
+    body += r.syntax_script()
+    body += '<script id="traffic-simulation">' + (r.ASSETS / "traffic-model.js").read_text(encoding="utf-8") + '</script>'
     body += '<script>' + (r.ASSETS / "showcase.js").read_text(encoding="utf-8") + '</script>'
-    styles = '\n'.join((r.ASSETS / name).read_text(encoding="utf-8") for name in ("report.css", "modern.css", "showcase.css"))
+    styles = '\n'.join((r.ASSETS / name).read_text(encoding="utf-8") for name in ("report.css", "modern.css", "showcase.css", "traffic-model.css"))
     page = (r.ASSETS / "page.html").read_text(encoding="utf-8")
     values = {"TITLE": "Change Explanation — showcase", "STYLE": styles, "BODY": body}
     return re.sub(r"\{\{(TITLE|STYLE|BODY)\}\}", lambda match: values[match[1]], page).replace('Skip to report</a>', 'Skip to showcase</a>')
